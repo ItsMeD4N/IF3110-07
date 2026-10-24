@@ -10,6 +10,8 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/user"
 )
 
@@ -17,9 +19,17 @@ func main() {
 	cfg := config.LoadConfig()
 	isProd := cfg.AppEnv == "production"
 
+	// 1. Inisialisasi Pool Database PostgreSQL
+	db, err := database.InitDB(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("[Database] Gagal menghubungkan ke database: %v", err)
+	}
+	defer db.Close()
+	log.Println("[Database] Berhasil terhubung ke PostgreSQL platform_db")
+
 	mux := http.NewServeMux()
 
-	// 1. Health check & status endpoint
+	// 2. Health check & status endpoint
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -29,10 +39,16 @@ func main() {
 		})
 	})
 
-	// 2. Registrasi Rute Per Modul
+	// Inisialisasi Repository & Manager [Orang A]
+	userRepo := auth.NewUserRepository(db)
+	sessionRepo := session.NewSessionRepository(db)
+	sessionMgr := session.NewManager(sessionRepo, isProd)
+
+	// 3. Registrasi Rute Per Modul
 	// [Orang A] Modul Identity & Session
-	auth.RegisterRoutes(mux)
-	user.RegisterRoutes(mux)
+	auth.RegisterRoutes(mux, userRepo, sessionMgr)
+	user.RegisterRoutes(mux, userRepo, sessionMgr)
+	csrf.RegisterRoutes(mux)
 
 	// [Orang B] Modul Authorization & Admin Console (Akan didaftarkan oleh Orang B)
 	// authz.RegisterRoutes(mux)
@@ -42,10 +58,10 @@ func main() {
 	// dbmanager.RegisterRoutes(mux)
 	// migration.RegisterRoutes(mux)
 
-	// 3. Pasang Global Middleware: Logging, Security Headers, CORS, dan CSRF
+	// 4. Pasang Global Middleware: Logging, CORS, CSRF, dan Security Headers
 	handler := securityHeadersMiddleware(mux)
-	handler = corsMiddleware(cfg.AllowedOrigin, handler)
 	handler = csrf.Middleware(isProd)(handler)
+	handler = corsMiddleware(cfg.AllowedOrigin, handler)
 	handler = loggingMiddleware(handler)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)

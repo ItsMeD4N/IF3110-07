@@ -15,7 +15,7 @@ type Config struct {
 
 func LoadConfig() *Config {
 	port := getEnv("PORT", "8080")
-	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/platform_db?sslmode=disable")
+	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable")
 	appEnv := getEnv("APP_ENV", "development")
 	sessionSecret := getEnv("SESSION_SECRET", "super-secret-session-key-change-in-prod-32bytes")
 	csrfSecret := getEnv("CSRF_SECRET", "super-secret-csrf-key-change-in-prod-32bytes")

@@ -50,7 +50,7 @@ INSERT INTO users (id, username, password_hash, is_platform_admin, is_active)
 VALUES (
     'a0000000-0000-0000-0000-000000000001',
     'admin',
-    '$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMeq',
+    '$2a$12$wsagDUCgkx0JPek99ZnJHeIOpMX4GAqa0r1I3XQydfnqLbMUalxvG',
     TRUE,
     TRUE
 ) ON CONFLICT (username) DO NOTHING;
