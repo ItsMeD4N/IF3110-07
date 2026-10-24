@@ -10,6 +10,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/user"
 )
 
@@ -17,9 +18,17 @@ func main() {
 	cfg := config.LoadConfig()
 	isProd := cfg.AppEnv == "production"
 
+	// 1. Inisialisasi Pool Database PostgreSQL
+	db, err := database.InitDB(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("[Database] Gagal menghubungkan ke database: %v", err)
+	}
+	defer db.Close()
+	log.Println("[Database] Berhasil terhubung ke PostgreSQL platform_db")
+
 	mux := http.NewServeMux()
 
-	// 1. Health check & status endpoint
+	// 2. Health check & status endpoint
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
