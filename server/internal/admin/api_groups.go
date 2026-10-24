@@ -1,10 +1,12 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"unicode/utf8"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/store"
@@ -170,6 +172,14 @@ func (m *Module) apiAddMember(w http.ResponseWriter, r *http.Request) {
 		httpx.ValidationError(w, "user_id wajib diisi (UUID).")
 		return
 	}
+	switch err := m.checkMemberCandidate(r.Context(), req.UserID); {
+	case errors.Is(err, errInactiveMember):
+		httpx.ValidationError(w, msgInactiveMember)
+		return
+	case err != nil:
+		writeStoreErr(w, r, err, "")
+		return
+	}
 	created, err := m.Store.AddMember(r.Context(), groupID, req.UserID)
 	if err != nil {
 		writeStoreErr(w, r, err, "")
@@ -206,6 +216,24 @@ func (m *Module) apiRemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 	m.privilegeChanged(r.Context(), []string{userID}, "group_member_removed")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+const msgInactiveMember = "User nonaktif tidak dapat ditambahkan ke group."
+
+var errInactiveMember = errors.New("admin: user nonaktif")
+
+func (m *Module) checkMemberCandidate(ctx context.Context, userID string) error {
+	u, err := m.Users.GetByID(ctx, userID)
+	if errors.Is(err, auth.ErrUserNotFound) {
+		return store.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if !u.IsActive {
+		return errInactiveMember
+	}
+	return nil
 }
 
 type grantRequest struct {

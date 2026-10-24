@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -162,11 +163,11 @@ func (m *Module) apiUpdateConnection(w http.ResponseWriter, r *http.Request) {
 	if req.Password != nil && *req.Password != "" {
 		newPassword = req.Password
 	}
+	pw, ok := m.resolvePassword(w, r, id, newPassword, req.config(""))
+	if !ok {
+		return
+	}
 	if req.TestBeforeSave {
-		pw, ok := m.resolveTestPassword(w, r, id, newPassword)
-		if !ok {
-			return
-		}
 		if res := m.Conns.Test(r.Context(), req.config(pw)); !res.OK {
 			writeTestFailed(w, res)
 			return
@@ -214,7 +215,7 @@ func (m *Module) apiTestNewConnection(w http.ResponseWriter, r *http.Request) {
 		pw = *newPassword
 	} else if req.ConnectionID > 0 {
 		var ok bool
-		if pw, ok = m.resolveTestPassword(w, r, req.ConnectionID, nil); !ok {
+		if pw, ok = m.resolvePassword(w, r, req.ConnectionID, nil, req.config("")); !ok {
 			return
 		}
 	}
@@ -238,20 +239,40 @@ func (m *Module) apiTestSavedConnection(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, http.StatusOK, res)
 }
 
-func (m *Module) resolveTestPassword(w http.ResponseWriter, r *http.Request, id int64, newPassword *string) (string, bool) {
+const MsgPasswordRequired = "Password wajib diisi ulang karena host, port, database, username, atau SSL mode berubah."
+
+var errPasswordRequired = errors.New("admin: password wajib diisi ulang untuk target koneksi baru")
+
+func (m *Module) storedPassword(ctx context.Context, id int64, target connmgr.Config) (string, error) {
+	cfg, found, err := m.Store.ConnectionConfig(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", store.ErrNotFound
+	}
+	if !cfg.SameTarget(target) {
+		return "", errPasswordRequired
+	}
+	return cfg.Password, nil
+}
+
+func (m *Module) resolvePassword(w http.ResponseWriter, r *http.Request, id int64, newPassword *string, target connmgr.Config) (string, bool) {
 	if newPassword != nil {
 		return *newPassword, true
 	}
-	cfg, found, err := m.Store.ConnectionConfig(r.Context(), id)
-	if err != nil {
-		httpx.Internal(w, r, err)
-		return "", false
-	}
-	if !found {
+	pw, err := m.storedPassword(r.Context(), id, target)
+	switch {
+	case err == nil:
+		return pw, true
+	case errors.Is(err, errPasswordRequired):
+		httpx.ValidationError(w, MsgPasswordRequired)
+	case errors.Is(err, store.ErrNotFound):
 		httpx.NotFound(w)
-		return "", false
+	default:
+		httpx.Internal(w, r, err)
 	}
-	return cfg.Password, true
+	return "", false
 }
 
 func writeTestFailed(w http.ResponseWriter, res connmgr.TestResult) {

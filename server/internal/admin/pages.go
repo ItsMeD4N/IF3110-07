@@ -254,6 +254,15 @@ func (m *Module) pageAddMember(w http.ResponseWriter, r *http.Request) {
 		web.Redirect(w, r, back)
 		return
 	}
+	switch err := m.checkMemberCandidate(r.Context(), userID); {
+	case errors.Is(err, errInactiveMember):
+		web.SetFlash(w, "error", msgInactiveMember)
+		web.Redirect(w, r, back)
+		return
+	case err != nil:
+		m.pageStoreErr(w, r, err, back, "")
+		return
+	}
 	created, err := m.Store.AddMember(r.Context(), id, userID)
 	if err != nil {
 		m.pageStoreErr(w, r, err, back, "")
@@ -417,27 +426,25 @@ func (m *Module) pageSaveConnection(w http.ResponseWriter, r *http.Request) {
 	if pw != "" || !editing {
 		newPassword = &pw
 	}
-	testPassword := func() (string, bool) {
-		if newPassword != nil {
-			return *newPassword, true
-		}
-		cfg, found, err := m.Store.ConnectionConfig(r.Context(), id)
-		if err != nil {
-			m.internal(w, r, err)
-			return "", false
-		}
-		if !found {
+	pwd := pw
+	if newPassword == nil {
+		stored, err := m.storedPassword(r.Context(), id, page.Form.config(""))
+		switch {
+		case errors.Is(err, errPasswordRequired):
+			page.Error = MsgPasswordRequired
+			m.renderConnForm(w, r, http.StatusUnprocessableEntity, page)
+			return
+		case errors.Is(err, store.ErrNotFound):
 			m.notFound(w, r)
-			return "", false
+			return
+		case err != nil:
+			m.internal(w, r, err)
+			return
 		}
-		return cfg.Password, true
+		pwd = stored
 	}
 
 	if r.FormValue("action") == "test" || page.Form.TestBeforeSave {
-		pwd, ok := testPassword()
-		if !ok {
-			return
-		}
 		res := m.Conns.Test(r.Context(), page.Form.config(pwd))
 		page.Test = &res
 		if r.FormValue("action") == "test" {
