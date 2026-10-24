@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/testutil"
 )
 
 func setupTestAuthEnv(t *testing.T) (*http.ServeMux, UserRepository, *session.Manager) {
@@ -20,7 +20,7 @@ func setupTestAuthEnv(t *testing.T) (*http.ServeMux, UserRepository, *session.Ma
 		connStr = "postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable"
 	}
 
-	db, err := database.InitDB(connStr)
+	db, err := testutil.InitDB(connStr)
 	if err != nil {
 		t.Fatalf("Gagal terhubung ke DB: %v", err)
 	}
