@@ -1,0 +1,15 @@
+{{define "title"}}Migration History{{end}}
+{{define "content"}}
+{{$id := .Data.DatabaseID}}
+<header class="page-header">
+  <div><p class="crumb"><a href="/databases/{{$id}}">Database</a> / <a href="/databases/{{$id}}/migrations">SQL Migration</a> / History</p><h1>Migration History</h1><p class="muted">Versi diurutkan berdasarkan waktu eksekusi terbaru.</p></div>
+  <a class="btn" href="/databases/{{$id}}/migrations">SQL Migration</a>
+</header>
+<section class="card">
+  {{if .Data.Migrations}}
+  <div class="table-wrap"><table><thead><tr><th>Versi</th><th>Status</th><th>Executor</th><th>Waktu</th><th>SQL</th><th>Error</th></tr></thead><tbody>
+  {{range .Data.Migrations}}<tr><td>{{.Version}}</td><td><span class="badge badge-{{.Status}}">{{.Status}}</span></td><td>{{.Executor}}</td><td>{{formatTime .ExecutedAt}}</td><td><details><summary>Lihat SQL</summary><pre class="sql-preview">{{.SQL}}</pre></details></td><td>{{.Error}}</td></tr>{{end}}
+  </tbody></table></div>
+  {{else}}<p>Belum ada migration untuk database ini.</p>{{end}}
+</section>
+{{end}}
