@@ -47,7 +47,7 @@ func main() {
 	// 3. Registrasi Rute Per Modul
 	// [Orang A] Modul Identity & Session
 	auth.RegisterRoutes(mux, userRepo, sessionMgr)
-	user.RegisterRoutes(mux)
+	user.RegisterRoutes(mux, userRepo, sessionMgr)
 	csrf.RegisterRoutes(mux)
 
 	// [Orang B] Modul Authorization & Admin Console (Akan didaftarkan oleh Orang B)
