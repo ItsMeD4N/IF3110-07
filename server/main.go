@@ -48,6 +48,7 @@ func main() {
 	// [Orang A] Modul Identity & Session
 	auth.RegisterRoutes(mux, userRepo, sessionMgr)
 	user.RegisterRoutes(mux)
+	csrf.RegisterRoutes(mux)
 
 	// [Orang B] Modul Authorization & Admin Console (Akan didaftarkan oleh Orang B)
 	// authz.RegisterRoutes(mux)
@@ -57,10 +58,10 @@ func main() {
 	// dbmanager.RegisterRoutes(mux)
 	// migration.RegisterRoutes(mux)
 
-	// 3. Pasang Global Middleware: Logging, Security Headers, CORS, dan CSRF
+	// 4. Pasang Global Middleware: Logging, CORS, CSRF, dan Security Headers
 	handler := securityHeadersMiddleware(mux)
-	handler = corsMiddleware(cfg.AllowedOrigin, handler)
 	handler = csrf.Middleware(isProd)(handler)
+	handler = corsMiddleware(cfg.AllowedOrigin, handler)
 	handler = loggingMiddleware(handler)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
