@@ -10,6 +10,7 @@ import (
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/admin"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/auth/loginpage"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
@@ -68,11 +69,18 @@ func main() {
 	}
 	mux.Handle("GET /static/", web.StaticHandler(clientDir))
 
+	loginpage.New(userRepo, sessionMgr, views).RegisterRoutes(mux)
+
 	adminMod, err := admin.New(db, userRepo, sessionMgr, admin.Options{AppEnv: cfg.AppEnv, Views: views})
 	if err != nil {
 		log.Fatalf("[Admin] %v", err)
 	}
 	defer adminMod.Close()
+	adminMod.OnPrivilegeChange = func(ctx context.Context, userIDs []string, reason string) {
+		if err := sessionMgr.RequireRotation(ctx, userIDs); err != nil {
+			log.Printf("[Admin] gagal menandai rotasi session (%s): %v", reason, err)
+		}
+	}
 	adminMod.RegisterRoutes(mux)
 
 	// [Orang C] Modul Database Viewer & Migration (Akan didaftarkan oleh Orang C)

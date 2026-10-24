@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/testutil"
 )
 
 func TestSessionRepository_Lifecycle(t *testing.T) {
@@ -15,7 +15,7 @@ func TestSessionRepository_Lifecycle(t *testing.T) {
 		connStr = "postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable"
 	}
 
-	db, err := database.InitDB(connStr)
+	db, err := testutil.InitDB(connStr)
 	if err != nil {
 		t.Fatalf("Gagal terhubung ke DB: %v", err)
 	}

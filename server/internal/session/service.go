@@ -143,7 +143,7 @@ func (m *Manager) ValidateSession(ctx context.Context, token string, w http.Resp
 
 	// 4. Token adalah token aktif utama. Cek apakah perlu rotasi berkala.
 	tokenAge := now.Sub(sess.UpdatedAt)
-	if tokenAge >= RotationInterval {
+	if tokenAge >= RotationInterval || sess.RotationRequired {
 		newToken, err := GenerateOpaqueToken()
 		if err != nil {
 			return nil, fmt.Errorf("gagal generate token rotasi: %w", err)
@@ -168,6 +168,7 @@ func (m *Manager) ValidateSession(ctx context.Context, token string, w http.Resp
 		sess.GracePeriodUntil = &graceUntil
 		sess.IdleExpiresAt = newIdleExpiry
 		sess.UpdatedAt = now
+		sess.RotationRequired = false
 
 		return sess, nil
 	}
@@ -203,8 +204,10 @@ func (m *Manager) ForceRotate(ctx context.Context, sess *Session, w http.Respons
 		m.SetCookie(w, newToken)
 	}
 
-	sess.RotatedFromTokenHash = &sess.TokenHash
+	oldTokenHash := sess.TokenHash
+	sess.RotatedFromTokenHash = &oldTokenHash
 	sess.TokenHash = newTokenHash
+	sess.RotationRequired = false
 	sess.GracePeriodUntil = &graceUntil
 	sess.IdleExpiresAt = newIdleExpiry
 	sess.UpdatedAt = now
@@ -227,4 +230,8 @@ func (m *Manager) Revoke(ctx context.Context, token string, w http.ResponseWrite
 // RevokeAllForUser mencabut seluruh sesi milik pengguna tertentu di DB
 func (m *Manager) RevokeAllForUser(ctx context.Context, userID string) error {
 	return m.repo.RevokeAllUserSessions(ctx, userID)
+}
+
+func (m *Manager) RequireRotation(ctx context.Context, userIDs []string) error {
+	return m.repo.MarkRotationRequired(ctx, userIDs)
 }

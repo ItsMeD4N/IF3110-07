@@ -66,6 +66,22 @@ func (c Config) DSN(connectTimeout time.Duration) string {
 	return u.String()
 }
 
+func (c Config) SameTarget(o Config) bool {
+	return strings.EqualFold(strings.TrimSpace(c.Host), strings.TrimSpace(o.Host)) &&
+		c.Port == o.Port &&
+		c.Database == o.Database &&
+		c.Username == o.Username &&
+		normalizeSSLMode(c.SSLMode) == normalizeSSLMode(o.SSLMode)
+}
+
+func normalizeSSLMode(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" {
+		return "disable"
+	}
+	return s
+}
+
 type ConfigSource interface {
 	ConnectionConfig(ctx context.Context, id int64) (cfg Config, found bool, err error)
 }
@@ -74,11 +90,14 @@ type Options struct {
 	ConnectTimeout time.Duration
 
 	MaxOpenConns int
+
+	HealthTTL time.Duration
 }
 
 type entry struct {
-	db      *sql.DB
-	version time.Time
+	db        *sql.DB
+	version   time.Time
+	checkedAt time.Time
 }
 
 type Manager struct {
@@ -95,6 +114,9 @@ func New(src ConfigSource, opts Options) *Manager {
 	}
 	if opts.MaxOpenConns <= 0 {
 		opts.MaxOpenConns = 5
+	}
+	if opts.HealthTTL == 0 {
+		opts.HealthTTL = 5 * time.Second
 	}
 	return &Manager{src: src, opts: opts, pools: map[int64]*entry{}}
 }
@@ -113,14 +135,40 @@ func (m *Manager) Pool(ctx context.Context, id int64) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	if m.recentlyHealthy(id, db) {
+		return db, nil
+	}
 
 	pctx, cancel := context.WithTimeout(ctx, m.opts.ConnectTimeout)
 	defer cancel()
 	if err := db.PingContext(pctx); err != nil {
-
+		m.setHealthy(id, db, false)
 		return nil, &ConnError{DatabaseID: id, Detail: sanitize(err, cfg)}
 	}
+	m.setHealthy(id, db, true)
 	return db, nil
+}
+
+func (m *Manager) recentlyHealthy(id int64, db *sql.DB) bool {
+	if m.opts.HealthTTL < 0 {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.pools[id]
+	return ok && e.db == db && !e.checkedAt.IsZero() && time.Since(e.checkedAt) < m.opts.HealthTTL
+}
+
+func (m *Manager) setHealthy(id int64, db *sql.DB, ok bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if e, exists := m.pools[id]; exists && e.db == db {
+		if ok {
+			e.checkedAt = time.Now()
+		} else {
+			e.checkedAt = time.Time{}
+		}
+	}
 }
 
 func (m *Manager) getOrOpen(id int64, cfg Config) (*sql.DB, error) {

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type SessionRepository interface {
@@ -15,6 +17,7 @@ type SessionRepository interface {
 	RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time, updatedAt time.Time) error
 	RevokeSession(ctx context.Context, tokenHash string) error
 	RevokeAllUserSessions(ctx context.Context, userID string) error
+	MarkRotationRequired(ctx context.Context, userIDs []string) error
 }
 
 type postgresSessionRepository struct {
@@ -67,7 +70,7 @@ func (r *postgresSessionRepository) CreateSession(ctx context.Context, s *Sessio
 func (r *postgresSessionRepository) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*Session, error) {
 	query := `
 		SELECT id, token_hash, user_id, idle_expires_at, absolute_expires_at,
-		       rotated_from_token_hash, grace_period_until, is_revoked,
+		       rotated_from_token_hash, grace_period_until, is_revoked, rotation_required,
 		       COALESCE(ip_address, ''), COALESCE(user_agent, ''), created_at, updated_at
 		FROM sessions
 		WHERE token_hash = $1 OR rotated_from_token_hash = $1
@@ -87,6 +90,7 @@ func (r *postgresSessionRepository) GetSessionByTokenHash(ctx context.Context, t
 		&rotatedFrom,
 		&gracePeriod,
 		&s.IsRevoked,
+		&s.RotationRequired,
 		&s.IPAddress,
 		&s.UserAgent,
 		&s.CreatedAt,
@@ -130,7 +134,8 @@ func (r *postgresSessionRepository) RotateSession(ctx context.Context, id string
 		    rotated_from_token_hash = $3,
 		    grace_period_until = $4,
 		    idle_expires_at = $5,
-		    updated_at = $6
+		    updated_at = $6,
+		    rotation_required = FALSE
 		WHERE id = $1 AND is_revoked = FALSE
 	`
 	_, err := r.db.ExecContext(ctx, query, id, newTokenHash, oldTokenHash, gracePeriodUntil, newIdleExpiry, updatedAt)
@@ -162,6 +167,21 @@ func (r *postgresSessionRepository) RevokeAllUserSessions(ctx context.Context, u
 	_, err := r.db.ExecContext(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("gagal mencabut seluruh sesi pengguna: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresSessionRepository) MarkRotationRequired(ctx context.Context, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+	query := `
+		UPDATE sessions
+		SET rotation_required = TRUE
+		WHERE user_id = ANY($1::uuid[]) AND is_revoked = FALSE AND absolute_expires_at > CURRENT_TIMESTAMP
+	`
+	if _, err := r.db.ExecContext(ctx, query, pq.Array(userIDs)); err != nil {
+		return fmt.Errorf("gagal menandai rotasi sesi: %w", err)
 	}
 	return nil
 }

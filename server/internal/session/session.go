@@ -33,6 +33,7 @@ type Session struct {
 	RotatedFromTokenHash *string
 	GracePeriodUntil     *time.Time
 	IsRevoked            bool
+	RotationRequired     bool
 	IPAddress            string
 	UserAgent            string
 	CreatedAt            time.Time

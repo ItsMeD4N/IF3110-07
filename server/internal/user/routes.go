@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 )
 
@@ -24,28 +25,7 @@ func NewHandler(userRepo auth.UserRepository, sessionMgr *session.Manager) *Hand
 
 // RequirePlatformAdmin memastikan principal di context adalah Platform Admin
 func RequirePlatformAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		currentUser := auth.CurrentUser(r.Context())
-		if currentUser == nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"error": "Belum terautentikasi",
-			})
-			return
-		}
-
-		if !currentUser.IsPlatformAdmin {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"error": "Akses ditolak: Hanya Platform Admin yang dapat mengakses fitur ini",
-			})
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+	return authz.RequirePlatform(authz.PermManageUsers, next)
 }
 
 // RegisterRoutes mendaftarkan seluruh rute CRUD User Platform Admin

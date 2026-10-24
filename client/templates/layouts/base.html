@@ -19,12 +19,17 @@
       <a class="nav-link{{if hasPrefix $.Path "/admin/connections"}} active{{end}}" href="/admin/connections">Koneksi database</a>
       {{end}}
     </nav>
-    <div class="whoami">
-      <span class="avatar" aria-hidden="true">{{initial .Username}}</span>
-      <div>
-        <div class="strong">{{.Username}}</div>
-        <div class="muted small">{{if .IsPlatformAdmin}}Platform Admin{{else}}User{{end}}</div>
+    <div class="sidebar-foot">
+      <div class="whoami">
+        <span class="avatar" aria-hidden="true">{{initial .Username}}</span>
+        <div>
+          <div class="strong">{{.Username}}</div>
+          <div class="muted small">{{if .IsPlatformAdmin}}Platform Admin{{else}}User{{end}}</div>
+        </div>
       </div>
+      <form method="post" action="/logout">
+        {{$.CSRFField}}<button class="btn btn-sm btn-block" type="submit">Keluar</button>
+      </form>
     </div>
     {{end}}
   </aside>
