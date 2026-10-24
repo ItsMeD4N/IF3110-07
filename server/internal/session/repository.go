@@ -12,7 +12,7 @@ type SessionRepository interface {
 	CreateSession(ctx context.Context, s *Session) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (*Session, error)
 	UpdateIdleExpiry(ctx context.Context, id string, newIdleExpiry time.Time) error
-	RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time) error
+	RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time, updatedAt time.Time) error
 	RevokeSession(ctx context.Context, tokenHash string) error
 	RevokeAllUserSessions(ctx context.Context, userID string) error
 }
@@ -26,13 +26,20 @@ func NewSessionRepository(db *sql.DB) SessionRepository {
 }
 
 func (r *postgresSessionRepository) CreateSession(ctx context.Context, s *Session) error {
+	if s.CreatedAt.IsZero() {
+		s.CreatedAt = time.Now()
+	}
+	if s.UpdatedAt.IsZero() {
+		s.UpdatedAt = s.CreatedAt
+	}
+
 	query := `
 		INSERT INTO sessions (
 			token_hash, user_id, idle_expires_at, absolute_expires_at,
 			rotated_from_token_hash, grace_period_until, is_revoked,
-			ip_address, user_agent
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, created_at, updated_at
+			ip_address, user_agent, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING id
 	`
 	err := r.db.QueryRowContext(
 		ctx,
@@ -46,7 +53,9 @@ func (r *postgresSessionRepository) CreateSession(ctx context.Context, s *Sessio
 		s.IsRevoked,
 		s.IPAddress,
 		s.UserAgent,
-	).Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt)
+		s.CreatedAt,
+		s.UpdatedAt,
+	).Scan(&s.ID)
 
 	if err != nil {
 		return fmt.Errorf("gagal membuat sesi baru: %w", err)
@@ -104,7 +113,7 @@ func (r *postgresSessionRepository) GetSessionByTokenHash(ctx context.Context, t
 func (r *postgresSessionRepository) UpdateIdleExpiry(ctx context.Context, id string, newIdleExpiry time.Time) error {
 	query := `
 		UPDATE sessions
-		SET idle_expires_at = $2, updated_at = CURRENT_TIMESTAMP
+		SET idle_expires_at = $2
 		WHERE id = $1 AND is_revoked = FALSE
 	`
 	_, err := r.db.ExecContext(ctx, query, id, newIdleExpiry)
@@ -114,17 +123,17 @@ func (r *postgresSessionRepository) UpdateIdleExpiry(ctx context.Context, id str
 	return nil
 }
 
-func (r *postgresSessionRepository) RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time) error {
+func (r *postgresSessionRepository) RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time, updatedAt time.Time) error {
 	query := `
 		UPDATE sessions
 		SET token_hash = $2,
 		    rotated_from_token_hash = $3,
 		    grace_period_until = $4,
 		    idle_expires_at = $5,
-		    updated_at = CURRENT_TIMESTAMP
+		    updated_at = $6
 		WHERE id = $1 AND is_revoked = FALSE
 	`
-	_, err := r.db.ExecContext(ctx, query, id, newTokenHash, oldTokenHash, gracePeriodUntil, newIdleExpiry)
+	_, err := r.db.ExecContext(ctx, query, id, newTokenHash, oldTokenHash, gracePeriodUntil, newIdleExpiry, updatedAt)
 	if err != nil {
 		return fmt.Errorf("gagal rotasi sesi: %w", err)
 	}

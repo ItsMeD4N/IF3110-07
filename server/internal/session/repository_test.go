@@ -77,7 +77,7 @@ func TestSessionRepository_Lifecycle(t *testing.T) {
 	graceUntil := time.Now().Add(GracePeriod)
 	newIdle := time.Now().Add(IdleTimeout)
 
-	err = repo.RotateSession(ctx, fetched.ID, tokenHash2, tokenHash1, graceUntil, newIdle)
+	err = repo.RotateSession(ctx, fetched.ID, tokenHash2, tokenHash1, graceUntil, newIdle, time.Now())
 	if err != nil {
 		t.Fatalf("Gagal rotasi sesi: %v", err)
 	}
