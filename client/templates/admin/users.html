@@ -1,0 +1,317 @@
+{{ define "content" }}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Manajemen Pengguna</h1>
+    <p class="page-description">Kelola akun pengguna, peran administrator, reset kata sandi, dan cabut sesi aktif.</p>
+  </div>
+  <div>
+    <button type="button" class="btn btn-primary" onclick="openModal('addUserModal')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      Tambah Pengguna Baru
+    </button>
+  </div>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-indigo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+      </svg>
+    </div>
+    <div>
+      <div class="stat-value">{{ .Data.TotalUsers }}</div>
+      <div class="stat-label">Total Pengguna</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-emerald">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+      </svg>
+    </div>
+    <div>
+      <div class="stat-value">{{ .Data.TotalAdmins }}</div>
+      <div class="stat-label">Platform Admin</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-amber">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 14 14"></polyline>
+      </svg>
+    </div>
+    <div>
+      <div class="stat-value">{{ .Data.TotalActive }}</div>
+      <div class="stat-label">Akun Aktif</div>
+    </div>
+  </div>
+</div>
+
+<!-- Users Table Card -->
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Daftar Akun Pengguna</h2>
+    <div style="font-size: 0.85rem; color: var(--text-muted);">
+      Menampilkan {{ len .Data.Users }} pengguna terdaftar
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Pengguna</th>
+          <th>Peran</th>
+          <th>Status</th>
+          <th>Dibuat Pada</th>
+          <th style="text-align: right;">Tindakan</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Data.Users }}
+        <tr>
+          <td>
+            <div class="table-user-cell">
+              <div class="user-cell-avatar">
+                {{ printf "%.1s" .Username }}
+              </div>
+              <div>
+                <div style="font-weight: 600; color: var(--text-primary);">{{ .Username }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">{{ .ID }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            {{ if .IsPlatformAdmin }}
+              <span class="badge badge-admin">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                Platform Admin
+              </span>
+            {{ else }}
+              <span class="badge badge-standard">Standard User</span>
+            {{ end }}
+          </td>
+          <td>
+            {{ if .IsActive }}
+              <span class="badge badge-active">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #34d399; display: inline-block;"></span>
+                Aktif
+              </span>
+            {{ else }}
+              <span class="badge badge-inactive">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #f87171; display: inline-block;"></span>
+                Nonaktif
+              </span>
+            {{ end }}
+          </td>
+          <td style="color: var(--text-secondary); font-size: 0.85rem;">
+            {{ formatDate .CreatedAt }}
+          </td>
+          <td>
+            <div class="table-actions">
+              <!-- Edit Button -->
+              <button 
+                type="button" 
+                class="btn btn-secondary btn-sm"
+                onclick="openEditUserModal('{{ .ID }}', '{{ .Username }}', {{ .IsPlatformAdmin }}, {{ .IsActive }})"
+                title="Edit akun"
+              >
+                Edit
+              </button>
+
+              <!-- Reset Password Button -->
+              <button 
+                type="button" 
+                class="btn btn-secondary btn-sm"
+                onclick="openResetPasswordModal('{{ .ID }}', '{{ .Username }}')"
+                title="Reset kata sandi"
+              >
+                Reset Password
+              </button>
+
+              <!-- Revoke Sessions Button -->
+              <form method="POST" action="/admin/users/{{ .ID }}/revoke-sessions" style="margin: 0;" onsubmit="return confirm('Apakah Anda yakin ingin mencabut seluruh sesi aktif user {{ .Username }}?');">
+                <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
+                <button type="submit" class="btn btn-warning btn-sm" title="Paksa logout seluruh sesi">
+                  Revoke Sesi
+                </button>
+              </form>
+
+              <!-- Delete Button (Prevent self delete) -->
+              {{ if eq .ID $.CurrentUser.ID }}
+                <span style="font-size: 0.75rem; color: var(--text-muted); padding: 0 0.4rem;">(Akun Anda)</span>
+              {{ else }}
+                <form method="POST" action="/admin/users/{{ .ID }}/delete" style="margin: 0;" onsubmit="return confirm('PERINGATAN: Apakah Anda yakin ingin menghapus user {{ .Username }} secara permanen?');">
+                  <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm" title="Hapus pengguna">
+                    Hapus
+                  </button>
+                </form>
+              {{ end }}
+            </div>
+          </td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+            Belum ada pengguna terdaftar.
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     Modal 1: Tambah Pengguna Baru
+     ========================================================================== -->
+<div class="modal-backdrop" id="addUserModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Tambah Pengguna Baru</h3>
+      <button type="button" class="modal-close" onclick="closeModal('addUserModal')">&times;</button>
+    </div>
+
+    <form method="POST" action="/admin/users">
+      <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+
+      <div class="form-group">
+        <label for="addUsername" class="form-label">Username</label>
+        <input 
+          type="text" 
+          id="addUsername" 
+          name="username" 
+          class="form-input" 
+          placeholder="contoh: budi_santoso" 
+          required 
+          autocomplete="off"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="addPassword" class="form-label">Password Awal</label>
+        <input 
+          type="password" 
+          id="addPassword" 
+          name="password" 
+          class="form-input" 
+          placeholder="Minimal 8 karakter" 
+          required 
+          autocomplete="new-password"
+        >
+      </div>
+
+      <div class="form-group">
+        <label class="form-checkbox-label">
+          <input type="checkbox" name="is_platform_admin" value="true" class="form-checkbox">
+          <span>Jadikan sebagai <strong>Platform Admin</strong></span>
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('addUserModal')">Batal</button>
+        <button type="submit" class="btn btn-primary">Simpan Pengguna</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     Modal 2: Edit Pengguna
+     ========================================================================== -->
+<div class="modal-backdrop" id="editUserModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Edit Pengguna</h3>
+      <button type="button" class="modal-close" onclick="closeModal('editUserModal')">&times;</button>
+    </div>
+
+    <form method="POST" action="" id="editUserForm">
+      <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+      <input type="hidden" name="user_id" id="editUserId">
+
+      <div class="form-group">
+        <label for="editUsername" class="form-label">Username</label>
+        <input 
+          type="text" 
+          id="editUsername" 
+          name="username" 
+          class="form-input" 
+          required 
+          autocomplete="off"
+        >
+      </div>
+
+      <div class="form-group">
+        <label class="form-checkbox-label">
+          <input type="checkbox" id="editIsAdmin" name="is_platform_admin" value="true" class="form-checkbox">
+          <span>Platform Admin</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="form-checkbox-label">
+          <input type="checkbox" id="editIsActive" name="is_active" value="true" class="form-checkbox">
+          <span>Akun Aktif (centang untuk mengaktifkan)</span>
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('editUserModal')">Batal</button>
+        <button type="submit" class="btn btn-primary">Perbarui Pengguna</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     Modal 3: Reset Password
+     ========================================================================== -->
+<div class="modal-backdrop" id="resetPasswordModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Reset Kata Sandi</h3>
+      <button type="button" class="modal-close" onclick="closeModal('resetPasswordModal')">&times;</button>
+    </div>
+
+    <form method="POST" action="" id="resetPasswordForm">
+      <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+      <input type="hidden" name="user_id" id="resetPasswordUserId">
+
+      <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+        Mereset password untuk akun: <strong id="resetPasswordUsernameTarget" style="color: var(--text-primary);"></strong>. Seluruh sesi aktif user ini akan otomatis dicabut.
+      </p>
+
+      <div class="form-group">
+        <label for="resetNewPassword" class="form-label">Password Baru</label>
+        <input 
+          type="password" 
+          id="resetNewPassword" 
+          name="new_password" 
+          class="form-input" 
+          placeholder="Minimal 8 karakter" 
+          required 
+          autocomplete="new-password"
+        >
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('resetPasswordModal')">Batal</button>
+        <button type="submit" class="btn btn-warning">Reset & Force Logout</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{ end }}

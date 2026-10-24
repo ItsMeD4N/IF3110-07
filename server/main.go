@@ -13,6 +13,8 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/user"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/view"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 )
 
 func main() {
@@ -29,7 +31,12 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// 2. Health check & status endpoint
+	// 2. Static Assets Server & View Engine
+	staticFS := http.FileServer(http.Dir(cfg.StaticDir))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", staticFS))
+	viewEngine := view.NewEngine(cfg.TemplatesDir, !isProd)
+
+	// 3. Health check & status endpoint
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -44,11 +51,15 @@ func main() {
 	sessionRepo := session.NewSessionRepository(db)
 	sessionMgr := session.NewManager(sessionRepo, isProd)
 
-	// 3. Registrasi Rute Per Modul
-	// [Orang A] Modul Identity & Session
+	// 4. Registrasi Rute Per Modul
+	// [Orang A] Modul Identity & Session (Web UI + JSON API)
+	webHandler := web.NewHandler(userRepo, sessionMgr, viewEngine)
+	webHandler.RegisterRoutes(mux)
+
 	auth.RegisterRoutes(mux, userRepo, sessionMgr)
 	user.RegisterRoutes(mux, userRepo, sessionMgr)
 	csrf.RegisterRoutes(mux)
+
 
 	// [Orang B] Modul Authorization & Admin Console (Akan didaftarkan oleh Orang B)
 	// authz.RegisterRoutes(mux)

@@ -1,0 +1,36 @@
+{{ define "base" }}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta name="description" content="Database Management Platform - IF3110 Pengembangan Aplikasi Web">
+  <title>{{ if .Title }}{{ .Title }} | DataPlatform{{ else }}DataPlatform - Database Management Platform{{ end }}</title>
+  
+  <!-- Modern Inter Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{ template "navbar" . }}
+
+  <main class="main-wrapper">
+    {{ template "alerts" . }}
+    {{ block "content" . }}{{ end }}
+  </main>
+
+  <footer class="footer">
+    <p>&copy; 2026 Database Management Platform &bull; IF3110 Pengembangan Aplikasi Web (Milestone 1)</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/static/js/main.js"></script>
+  {{ block "scripts" . }}{{ end }}
+</body>
+</html>
+{{ end }}
