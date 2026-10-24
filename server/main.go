@@ -11,6 +11,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/user"
 )
 
@@ -38,9 +39,14 @@ func main() {
 		})
 	})
 
-	// 2. Registrasi Rute Per Modul
+	// Inisialisasi Repository & Manager [Orang A]
+	userRepo := auth.NewUserRepository(db)
+	sessionRepo := session.NewSessionRepository(db)
+	sessionMgr := session.NewManager(sessionRepo, isProd)
+
+	// 3. Registrasi Rute Per Modul
 	// [Orang A] Modul Identity & Session
-	auth.RegisterRoutes(mux)
+	auth.RegisterRoutes(mux, userRepo, sessionMgr)
 	user.RegisterRoutes(mux)
 
 	// [Orang B] Modul Authorization & Admin Console (Akan didaftarkan oleh Orang B)
