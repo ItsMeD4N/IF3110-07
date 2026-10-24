@@ -1,0 +1,64 @@
+{{define "title"}}{{if .Data.Editing}}Ubah koneksi{{else}}Tambah koneksi{{end}}{{end}}
+{{define "content"}}
+{{$d := .Data}}
+<p class="crumb"><a href="/admin/connections">Koneksi database</a> / {{if $d.Editing}}{{$d.Form.Name}}{{else}}Baru{{end}}</p>
+<header class="page-header">
+  <h1>{{if $d.Editing}}Ubah koneksi{{else}}Tambah koneksi{{end}}</h1>
+</header>
+
+<section class="card form-card narrow">
+  {{with $d.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}
+  <form method="post" action="{{if $d.Editing}}/admin/connections/{{$d.ID}}{{else}}/admin/connections{{end}}" class="form" autocomplete="off">
+    {{.CSRFField}}
+    <label>Nama koneksi
+      <input name="name" value="{{$d.Form.Name}}" maxlength="64" required>
+    </label>
+    <label><span>Deskripsi <span class="muted">(opsional)</span></span>
+      <input name="description" value="{{$d.Form.Description}}" maxlength="500">
+    </label>
+    <div class="form-row">
+      <label class="grow">Host <input name="host" value="{{$d.Form.Host}}" required spellcheck="false"></label>
+      <label class="w-port">Port <input name="port" type="number" min="1" max="65535" value="{{$d.Form.Port}}" required></label>
+    </div>
+    <label>Nama database
+      <input name="database_name" value="{{$d.Form.DatabaseName}}" required spellcheck="false">
+    </label>
+    <div class="form-row">
+      <label class="grow">Username <input name="username" value="{{$d.Form.Username}}" required spellcheck="false" autocomplete="off"></label>
+      <label class="grow">Password
+        <input name="password" type="password" autocomplete="new-password"
+               placeholder="{{if $d.Editing}}Kosongkan = tidak diubah{{end}}">
+      </label>
+    </div>
+    <p class="muted small hint">
+      {{if $d.Editing}}Password tersimpan tidak pernah ditampilkan. Isi hanya jika ingin menggantinya.
+      {{else}}Password disimpan terenkripsi dan tidak akan ditampilkan kembali.{{end}}
+    </p>
+    <label>SSL mode
+      <select name="ssl_mode">
+        {{range $d.SSLModes}}<option value="{{.}}"{{if eq . $d.Form.SSLMode}} selected{{end}}>{{.}}</option>{{end}}
+      </select>
+    </label>
+
+    {{with $d.Test}}
+    <div class="test-box {{if .OK}}test-ok{{else}}test-fail{{end}}" role="status">
+      {{if .OK}}Berhasil terhubung — PostgreSQL {{.ServerVersion}}, {{.LatencyMS}} ms.
+      {{else}}Tes koneksi gagal: {{.Error}}{{end}}
+      {{if not $d.Editing}}<div class="small">Isi ulang password sebelum menyimpan.</div>{{end}}
+    </div>
+    {{end}}
+
+    <label class="checkbox">
+      <input type="checkbox" name="test_before_save" value="1"{{if $d.Form.TestBeforeSave}} checked{{end}}>
+      Tes koneksi sebelum menyimpan
+    </label>
+
+    <div class="form-actions">
+      <a class="btn" href="/admin/connections">Batal</a>
+      <button class="btn" type="submit" name="action" value="test" formnovalidate>Tes koneksi</button>
+      <button class="btn btn-primary" type="submit" name="action" value="save">Simpan</button>
+    </div>
+    {{if $d.Editing}}<p class="muted small">Terakhir diubah {{formatTime $d.UpdatedAt}}</p>{{end}}
+  </form>
+</section>
+{{end}}

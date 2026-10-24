@@ -1,18 +1,22 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/admin"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/user"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
+	"github.com/ItsMeD4N/IF3110-07/server/migrations"
 )
 
 func main() {
@@ -26,6 +30,10 @@ func main() {
 	}
 	defer db.Close()
 	log.Println("[Database] Berhasil terhubung ke PostgreSQL platform_db")
+
+	if err := migrations.Apply(context.Background(), db); err != nil {
+		log.Fatalf("[Database] Gagal menjalankan migrasi: %v", err)
+	}
 
 	mux := http.NewServeMux()
 
@@ -50,9 +58,22 @@ func main() {
 	user.RegisterRoutes(mux, userRepo, sessionMgr)
 	csrf.RegisterRoutes(mux)
 
-	// [Orang B] Modul Authorization & Admin Console (Akan didaftarkan oleh Orang B)
-	// authz.RegisterRoutes(mux)
-	// admin.RegisterRoutes(mux)
+	clientDir, err := web.FindClientDir()
+	if err != nil {
+		log.Fatalf("[Web] %v", err)
+	}
+	views, err := web.New(clientDir, !isProd)
+	if err != nil {
+		log.Fatalf("[Web] Gagal memuat template: %v", err)
+	}
+	mux.Handle("GET /static/", web.StaticHandler(clientDir))
+
+	adminMod, err := admin.New(db, userRepo, sessionMgr, admin.Options{AppEnv: cfg.AppEnv, Views: views})
+	if err != nil {
+		log.Fatalf("[Admin] %v", err)
+	}
+	defer adminMod.Close()
+	adminMod.RegisterRoutes(mux)
 
 	// [Orang C] Modul Database Viewer & Migration (Akan didaftarkan oleh Orang C)
 	// dbmanager.RegisterRoutes(mux)

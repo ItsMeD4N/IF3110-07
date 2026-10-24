@@ -1,0 +1,37 @@
+{{define "base"}}<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{template "title" .}} · DB Platform</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/databases"><span class="brand-mark" aria-hidden="true">◆</span> DB Platform</a>
+    {{with .User}}
+    <nav aria-label="Navigasi utama">
+      <a class="nav-link{{if hasPrefix $.Path "/databases"}} active{{end}}" href="/databases">Database saya</a>
+      {{if .IsPlatformAdmin}}
+      <div class="nav-section">Platform Admin</div>
+      <a class="nav-link{{if hasPrefix $.Path "/admin/groups"}} active{{end}}" href="/admin/groups">Group &amp; akses</a>
+      <a class="nav-link{{if hasPrefix $.Path "/admin/connections"}} active{{end}}" href="/admin/connections">Koneksi database</a>
+      {{end}}
+    </nav>
+    <div class="whoami">
+      <span class="avatar" aria-hidden="true">{{initial .Username}}</span>
+      <div>
+        <div class="strong">{{.Username}}</div>
+        <div class="muted small">{{if .IsPlatformAdmin}}Platform Admin{{else}}User{{end}}</div>
+      </div>
+    </div>
+    {{end}}
+  </aside>
+  <main class="content">
+    {{with .Flash}}<div class="alert alert-{{.Kind}}" role="{{if eq .Kind "error"}}alert{{else}}status{{end}}">{{.Message}}</div>{{end}}
+    {{template "content" .}}
+  </main>
+</div>
+</body>
+</html>{{end}}

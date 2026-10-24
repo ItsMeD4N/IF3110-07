@@ -1,0 +1,109 @@
+{{define "title"}}{{.Data.Group.Name}}{{end}}
+{{define "content"}}
+{{$csrf := .CSRFField}}
+{{$g := .Data.Group}}
+<p class="crumb"><a href="/admin/groups">Group</a> / {{$g.Name}}</p>
+<header class="page-header">
+  <div>
+    <h1>{{$g.Name}}</h1>
+    <p class="muted">{{if $g.Description}}{{$g.Description}}{{else}}Tanpa deskripsi{{end}}</p>
+  </div>
+  <form method="post" action="/admin/groups/{{$g.ID}}/delete"
+        onsubmit="return confirm('Hapus group {{$g.Name}}? Semua anggota kehilangan akses yang diberikan group ini.')">
+    {{$csrf}}
+    <button class="btn btn-danger-ghost" type="submit">Hapus group</button>
+  </form>
+</header>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Anggota</h2><span class="count">{{len .Data.Members}}</span></div>
+    {{if .Data.CandidateUsers}}
+    <form method="post" action="/admin/groups/{{$g.ID}}/members" class="inline-form">
+      {{$csrf}}
+      <select name="user_id" aria-label="Pilih user" required>
+        <option value="">Pilih user…</option>
+        {{range .Data.CandidateUsers}}<option value="{{.ID}}">{{.Username}}{{if .IsPlatformAdmin}} (admin){{end}}</option>{{end}}
+      </select>
+      <button class="btn btn-primary" type="submit">Tambah</button>
+    </form>
+    {{else}}
+    <p class="muted small">Semua user aktif sudah menjadi anggota.</p>
+    {{end}}
+    {{if .Data.Members}}
+    <ul class="list">
+      {{range .Data.Members}}
+      <li>
+        <span><span class="avatar" aria-hidden="true">{{initial .Username}}</span>{{.Username}}
+          {{if .IsPlatformAdmin}}<span class="tag">admin</span>{{end}}
+          {{if not .IsActive}}<span class="tag tag-muted">nonaktif</span>{{end}}</span>
+        <form method="post" action="/admin/groups/{{$g.ID}}/members/{{.UserID}}/delete"
+              onsubmit="return confirm('Keluarkan {{.Username}} dari group ini?')">
+          {{$csrf}}<button class="btn btn-sm btn-danger-ghost" type="submit">Keluarkan</button>
+        </form>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<div class="empty">Belum ada anggota.</div>{{end}}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Akses database</h2><span class="count">{{len .Data.Grants}}</span></div>
+    {{if .Data.CandidateConns}}
+    <form method="post" action="/admin/groups/{{$g.ID}}/grants" class="inline-form">
+      {{$csrf}}
+      <select name="connection_id" aria-label="Pilih database" required>
+        <option value="">Pilih database…</option>
+        {{range .Data.CandidateConns}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+      <select name="access_level" aria-label="Tingkat akses">
+        <option value="view_only">View Only</option>
+        <option value="view_edit">View + Edit</option>
+      </select>
+      <button class="btn btn-primary" type="submit">Beri akses</button>
+    </form>
+    {{else if not .Data.HasConnections}}
+    <p class="muted small">Belum ada koneksi database. <a href="/admin/connections/new">Tambah koneksi</a> terlebih dahulu.</p>
+    {{end}}
+    {{if .Data.Grants}}
+    <ul class="list">
+      {{range .Data.Grants}}
+      <li>
+        <span class="strong">{{.ConnectionName}}</span>
+        <span class="list-actions">
+          <form method="post" action="/admin/groups/{{$g.ID}}/grants" class="inline-form compact">
+            {{$csrf}}
+            <input type="hidden" name="connection_id" value="{{.ConnectionID}}">
+            <select name="access_level" aria-label="Tingkat akses {{.ConnectionName}}">
+              <option value="view_only"{{if eq .AccessLevel.String "view_only"}} selected{{end}}>View Only</option>
+              <option value="view_edit"{{if eq .AccessLevel.String "view_edit"}} selected{{end}}>View + Edit</option>
+            </select>
+            <button class="btn btn-sm" type="submit">Ubah</button>
+          </form>
+          <form method="post" action="/admin/groups/{{$g.ID}}/grants/{{.ConnectionID}}/delete"
+                onsubmit="return confirm('Cabut akses group ini ke {{.ConnectionName}}?')">
+            {{$csrf}}<button class="btn btn-sm btn-danger-ghost" type="submit">Cabut</button>
+          </form>
+        </span>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<div class="empty">Group ini belum punya akses ke database mana pun.</div>{{end}}
+    <div class="legend">
+      <div><span class="badge badge-view_only">View Only</span> lihat schema, data, dan riwayat migration.</div>
+      <div><span class="badge badge-view_edit">View + Edit</span> semua akses View Only + membuat, mengubah, dan menjalankan migration.</div>
+      <div class="muted small">Jika user ada di beberapa group yang mengakses database yang sama, berlaku tingkat <strong>tertinggi</strong>.</div>
+    </div>
+  </section>
+</div>
+
+<section class="card form-card">
+  <h2>Ubah group</h2>
+  <form method="post" action="/admin/groups/{{$g.ID}}" class="form-inline">
+    {{$csrf}}
+    <label>Nama <input name="name" value="{{$g.Name}}" maxlength="64" required></label>
+    <label class="grow">Deskripsi <input name="description" value="{{$g.Description}}" maxlength="500"></label>
+    <button class="btn" type="submit">Simpan</button>
+  </form>
+</section>
+{{end}}

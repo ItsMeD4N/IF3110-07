@@ -1,0 +1,38 @@
+{{define "title"}}Pilih database{{end}}
+{{define "content"}}
+{{$csrf := .CSRFField}}
+<header class="page-header">
+  <div>
+    <h1>Pilih database</h1>
+    <p class="muted">Hanya database yang dapat Anda akses melalui group yang ditampilkan.</p>
+  </div>
+</header>
+{{if .Data.Databases}}
+<div class="db-grid">
+  {{range .Data.Databases}}
+  <article class="db-card">
+    <div class="db-card-head">
+      <h2>{{.Name}}</h2>
+      <span class="badge badge-{{.AccessLevel.String}}">{{.AccessLevel.Label}}</span>
+    </div>
+    <div class="mono muted small">{{.DatabaseName}}</div>
+    {{if .Description}}<p class="db-desc">{{.Description}}</p>{{end}}
+    <ul class="caps">
+      <li class="cap-on">Lihat schema &amp; data</li>
+      <li class="cap-on">Lihat riwayat migration</li>
+      <li class="{{if eq .AccessLevel.String "view_edit"}}cap-on{{else}}cap-off{{end}}">Buat &amp; jalankan migration</li>
+    </ul>
+    <div class="muted small">Melalui group: {{join .ViaGroups ", "}}</div>
+    <form method="post" action="/databases/{{.ID}}/open">
+      {{$csrf}}<button class="btn btn-primary btn-block" type="submit">Buka</button>
+    </form>
+  </article>
+  {{end}}
+</div>
+{{else}}
+<div class="empty">
+  Anda belum memiliki akses ke database mana pun. Minta Platform Admin menambahkan Anda ke group yang memiliki akses.
+  {{if .Data.IsAdmin}}<br><span class="small">Sebagai Platform Admin, Anda tetap perlu menjadi anggota group yang diberi akses — <a href="/admin/groups">kelola group</a>.</span>{{end}}
+</div>
+{{end}}
+{{end}}

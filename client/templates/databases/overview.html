@@ -1,0 +1,20 @@
+{{define "title"}}{{.Data.Name}}{{end}}
+{{define "content"}}
+{{$d := .Data}}
+<p class="crumb"><a href="/databases">Database</a> / {{$d.Name}}</p>
+<header class="page-header">
+  <div>
+    <h1>{{$d.Name}}</h1>
+    <p class="mono muted">{{$d.DatabaseName}}</p>
+  </div>
+  <span class="badge badge-{{$d.Level.String}}">{{$d.Level.Label}}</span>
+</header>
+{{if $d.Description}}<p>{{$d.Description}}</p>{{end}}
+<section class="card">
+  <h2>Izin Anda pada database ini</h2>
+  <ul class="perm-list">
+    {{range $d.Permissions}}<li class="mono small">{{.}}</li>{{end}}
+  </ul>
+  {{if not $d.CanEdit}}<p class="muted small">Anda hanya dapat melihat (View Only). Membuat dan menjalankan migration membutuhkan akses View + Edit.</p>{{end}}
+</section>
+{{end}}

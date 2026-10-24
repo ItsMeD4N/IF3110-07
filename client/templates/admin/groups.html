@@ -1,0 +1,47 @@
+{{define "title"}}Group & akses{{end}}
+{{define "content"}}
+<header class="page-header">
+  <div>
+    <h1>Group &amp; akses</h1>
+    <p class="muted">Akses database diberikan ke group. User mendapat akses dengan menjadi anggota group.</p>
+  </div>
+</header>
+
+<section class="card form-card">
+  <h2>Buat group</h2>
+  {{with .Data.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}
+  <form method="post" action="/admin/groups" class="form-inline">
+    {{.CSRFField}}
+    <label>Nama
+      <input name="name" value="{{.Data.Form.Name}}" maxlength="64" required>
+    </label>
+    <label class="grow"><span>Deskripsi <span class="muted">(opsional)</span></span>
+      <input name="description" value="{{.Data.Form.Description}}" maxlength="500">
+    </label>
+    <button class="btn btn-primary" type="submit">Buat group</button>
+  </form>
+</section>
+
+{{if .Data.Groups}}
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr><th>Nama</th><th>Deskripsi</th><th class="num">Anggota</th><th class="num">Database</th><th><span class="sr-only">Aksi</span></th></tr>
+    </thead>
+    <tbody>
+    {{range .Data.Groups}}
+      <tr>
+        <td><a class="strong" href="/admin/groups/{{.ID}}">{{.Name}}</a></td>
+        <td class="muted">{{if .Description}}{{.Description}}{{else}}—{{end}}</td>
+        <td class="num">{{.MemberCount}}</td>
+        <td class="num">{{.GrantCount}}</td>
+        <td class="row-actions"><a class="btn btn-sm" href="/admin/groups/{{.ID}}">Kelola</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="empty">Belum ada group. Buat group pertama untuk mulai memberi akses database.</div>
+{{end}}
+{{end}}

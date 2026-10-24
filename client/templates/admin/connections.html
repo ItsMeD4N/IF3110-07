@@ -1,0 +1,41 @@
+{{define "title"}}Koneksi database{{end}}
+{{define "content"}}
+{{$csrf := .CSRFField}}
+<header class="page-header">
+  <div>
+    <h1>Koneksi database</h1>
+    <p class="muted">Database PostgreSQL yang dikelola platform. Kredensial disimpan terenkripsi dan tidak pernah ditampilkan kembali.</p>
+  </div>
+  <a class="btn btn-primary" href="/admin/connections/new">+ Tambah koneksi</a>
+</header>
+{{if .Data}}
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr><th>Nama</th><th>Server</th><th>Database</th><th>User</th><th>SSL</th><th><span class="sr-only">Aksi</span></th></tr>
+    </thead>
+    <tbody>
+    {{range .Data}}
+      <tr>
+        <td><div class="strong">{{.Name}}</div>{{if .Description}}<div class="muted small">{{.Description}}</div>{{end}}</td>
+        <td class="mono">{{.Host}}:{{.Port}}</td>
+        <td class="mono">{{.DatabaseName}}</td>
+        <td class="mono">{{.Username}}</td>
+        <td class="mono">{{.SSLMode}}</td>
+        <td class="row-actions">
+          <form method="post" action="/admin/connections/{{.ID}}/test">{{$csrf}}<button class="btn btn-sm" type="submit">Tes</button></form>
+          <a class="btn btn-sm" href="/admin/connections/{{.ID}}/edit">Ubah</a>
+          <form method="post" action="/admin/connections/{{.ID}}/delete"
+                onsubmit="return confirm('Hapus koneksi {{.Name}}? Semua grant group ke database ini ikut dihapus. Database aslinya tidak terpengaruh.')">
+            {{$csrf}}<button class="btn btn-sm btn-danger-ghost" type="submit">Hapus</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="empty">Belum ada koneksi. <a href="/admin/connections/new">Tambahkan database PostgreSQL pertama.</a></div>
+{{end}}
+{{end}}

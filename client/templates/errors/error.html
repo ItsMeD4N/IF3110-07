@@ -1,0 +1,9 @@
+{{define "title"}}{{.Data.Heading}}{{end}}
+{{define "content"}}
+<div class="center-card">
+  <div class="error-code">{{.Data.Status}}</div>
+  <h1>{{.Data.Heading}}</h1>
+  <p class="muted">{{.Data.Message}}</p>
+  <a class="btn" href="/databases">Kembali ke database saya</a>
+</div>
+{{end}}
