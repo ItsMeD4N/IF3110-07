@@ -15,6 +15,12 @@ var files embed.FS
 
 const lockKey = 31100701
 
+var renamedVersions = map[string]string{
+	"001_orang_a_users_sessions":     "001_users_sessions",
+	"002_orang_b_groups_connections": "002_groups_connections",
+	"003_orang_c_migrations":         "003_migration_history",
+}
+
 func Apply(ctx context.Context, db *sql.DB) error {
 	conn, err := db.Conn(ctx)
 	if err != nil {
@@ -32,6 +38,13 @@ func Apply(ctx context.Context, db *sql.DB) error {
 		applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
 	)`); err != nil {
 		return fmt.Errorf("migrations: buat tabel pencatat: %w", err)
+	}
+	for oldVersion, newVersion := range renamedVersions {
+		if _, err := conn.ExecContext(ctx, `UPDATE platform_schema_migrations SET version = $2
+			WHERE version = $1 AND NOT EXISTS (SELECT 1 FROM platform_schema_migrations WHERE version = $2)`,
+			oldVersion, newVersion); err != nil {
+			return fmt.Errorf("migrations: ganti nama versi %s: %w", oldVersion, err)
+		}
 	}
 	names, err := fs.Glob(files, "*.sql")
 	if err != nil {

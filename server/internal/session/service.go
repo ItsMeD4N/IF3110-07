@@ -29,6 +29,8 @@ func NewManager(repo SessionRepository, isProd bool) *Manager {
 	}
 }
 
+func (m *Manager) SecureCookies() bool { return m.isProd }
+
 func (m *Manager) SetNowFunc(f func() time.Time) {
 	m.nowFunc = f
 }

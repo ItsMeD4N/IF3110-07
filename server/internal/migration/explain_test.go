@@ -2,6 +2,7 @@ package migration
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	_ "github.com/lib/pq"
@@ -93,7 +94,7 @@ func TestRunExplainLiveRollback(t *testing.T) {
 	ctx := context.Background()
 
 	querySelect := "SELECT id, username FROM users WHERE username = 'admin'"
-	results, err := runExplain(ctx, db, querySelect, true)
+	results, err := runExplain(ctx, db, querySelect, true, false)
 	if err != nil {
 		t.Fatalf("Gagal runExplain SELECT: %v", err)
 	}
@@ -113,7 +114,7 @@ func TestRunExplainLiveRollback(t *testing.T) {
 
 	testUniqueUser := "rollback_test_user_explain"
 	insertQuery := "INSERT INTO users (username, password_hash) VALUES ('" + testUniqueUser + "', 'dummy_hash')"
-	_, err = runExplain(ctx, db, insertQuery, true)
+	_, err = runExplain(ctx, db, insertQuery, true, false)
 	if err != nil {
 		t.Fatalf("Gagal runExplain INSERT: %v", err)
 	}
@@ -124,6 +125,79 @@ func TestRunExplainLiveRollback(t *testing.T) {
 		t.Fatalf("Gagal query cek user: %v", err)
 	}
 	if exists {
-		t.Errorf("BAHAYA: Data INSERT dari EXPLAIN ANALYZE tersimpan permanen di database, safe rollback gagal!")
+		t.Errorf("data INSERT dari EXPLAIN ANALYZE ikut tersimpan, rollback-nya gagal")
+	}
+}
+
+func TestRunExplainReadOnlyRejectsAnalyze(t *testing.T) {
+	if _, err := runExplain(context.Background(), nil, "SELECT 1", true, true); err == nil {
+		t.Fatal("Ekspektasi EXPLAIN ANALYZE ditolak pada mode read-only")
+	}
+}
+
+func TestRunExplainExecutesQueryOnce(t *testing.T) {
+	cfg := config.LoadConfig()
+	db, err := database.InitDB(cfg.DatabaseURL)
+	if err != nil {
+		t.Skipf("Database tidak tersedia untuk live test: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	seq := "explain_once_seq_test"
+	if _, err := db.ExecContext(ctx, "DROP SEQUENCE IF EXISTS "+seq); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, "CREATE SEQUENCE "+seq); err != nil {
+		t.Fatal(err)
+	}
+	defer db.ExecContext(ctx, "DROP SEQUENCE IF EXISTS "+seq)
+
+	results, err := runExplain(ctx, db, "SELECT nextval('"+seq+"')", true, false)
+	if err != nil {
+		t.Fatalf("Gagal runExplain: %v", err)
+	}
+	if len(results) != 1 || results[0].RawText == "" {
+		t.Fatalf("Ekspektasi 1 hasil dengan raw text, didapat %+v", results)
+	}
+
+	var last int64
+	if err := db.QueryRowContext(ctx, "SELECT last_value FROM "+seq).Scan(&last); err != nil {
+		t.Fatal(err)
+	}
+	if last != 1 {
+		t.Errorf("Ekspektasi query dieksekusi tepat sekali (last_value=1), didapat %d", last)
+	}
+}
+
+func TestFormatPlanText(t *testing.T) {
+	actualTime := 0.05
+	actualRows := float64(3)
+	loops := float64(1)
+	planTime := 0.2
+	text := formatPlanText(rawWrapper{
+		PlanningTime: &planTime,
+		Plan: rawNode{
+			NodeType:  "Hash Join",
+			TotalCost: 10,
+			PlanRows:  3,
+			HashCond:  "(a.id = b.a_id)",
+			Plans: []rawNode{
+				{NodeType: "Seq Scan", RelationName: "a", Schema: "public", Alias: "a", TotalCost: 1, PlanRows: 3, ActualTotalTime: &actualTime, ActualRows: &actualRows, ActualLoops: &loops},
+				{NodeType: "Index Scan", IndexName: "b_pkey", RelationName: "b", Schema: "public", Alias: "b", IndexCond: "(id = 1)", TotalCost: 2, PlanRows: 1},
+			},
+		},
+	})
+	for _, want := range []string{
+		"Hash Join  (cost=0.00..10.00 rows=3)",
+		"Hash Cond: (a.id = b.a_id)",
+		"->  Seq Scan on public.a  (cost=0.00..1.00 rows=3) (actual time=0.000..0.050 rows=3 loops=1)",
+		"->  Index Scan using b_pkey on public.b",
+		"Index Cond: (id = 1)",
+		"Planning Time: 0.200 ms",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("Raw text tidak memuat %q:\n%s", want, text)
+		}
 	}
 }

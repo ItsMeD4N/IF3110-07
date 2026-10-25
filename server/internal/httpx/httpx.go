@@ -25,13 +25,13 @@ const (
 )
 
 const (
-	MsgUnauthenticated = "Anda harus login terlebih dahulu."
-	MsgForbidden       = "Anda tidak memiliki izin untuk melakukan aksi ini."
-	MsgNotFound        = "Resource tidak ditemukan atau Anda tidak memiliki akses."
-	MsgInternal        = "Terjadi kesalahan pada server."
+	MsgUnauthenticated = "Kamu perlu login dulu."
+	MsgForbidden       = "Kamu tidak punya izin untuk aksi ini."
+	MsgNotFound        = "Data tidak ditemukan atau kamu tidak punya akses."
+	MsgInternal        = "Ada masalah di server."
 
-	MsgConnectionFailed = "Tidak dapat terhubung ke database. Coba lagi nanti atau hubungi Platform Admin."
-	MsgPlatformTarget   = "Koneksi ini menunjuk ke database platform sehingga tidak boleh dikelola. Hubungi Platform Admin."
+	MsgConnectionFailed = "Database tidak bisa dihubungi. Coba lagi nanti atau kabari Platform Admin."
+	MsgPlatformTarget   = "Koneksi ini mengarah ke database platform, jadi tidak boleh dipakai. Kabari Platform Admin."
 )
 
 type ErrorBody struct {

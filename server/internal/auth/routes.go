@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 )
 
@@ -59,7 +60,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusUnauthorized, "Username atau password salah")
 		return
 	case errors.Is(err, ErrInactiveUser):
-		writeJSONError(w, http.StatusForbidden, "Akun Anda telah dinonaktifkan. Silakan hubungi Platform Admin.")
+		writeJSONError(w, http.StatusForbidden, "Akun kamu sudah dinonaktifkan. Hubungi Platform Admin.")
 		return
 	case err != nil:
 		writeJSONError(w, http.StatusInternalServerError, "Terjadi kesalahan internal server")
@@ -75,6 +76,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.sessionMgr.SetCookie(w, token, sess.AbsoluteExpiresAt)
+	_, _ = csrf.Rotate(w, h.sessionMgr.SecureCookies())
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

@@ -12,12 +12,14 @@ import (
 	"time"
 )
 
-const baseURL = "http://localhost:8080"
+const (
+	baseURL             = "http://localhost:8080"
+	smokeConnectionName = "E2E Sample DB"
+	smokeGroupName      = "E2E Devs"
+)
 
 func main() {
-	fmt.Println("==================================================================")
-	fmt.Println("🚀 MENJALANKAN LIVE E2E SMOKE TEST PADA SERVER (http://localhost:8080)")
-	fmt.Println("==================================================================")
+	fmt.Println("smoketest ke " + baseURL)
 
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{
@@ -28,22 +30,22 @@ func main() {
 		},
 	}
 
-	fmt.Print("\n[1/6] Menguji Server Health (/api/health)... ")
+	fmt.Print("\n[1/6] health check... ")
 	resp, err := client.Get(baseURL + "/api/health")
 	if err != nil {
-		fatal("Server tidak dapat dijangkau: %v", err)
+		fatal("server tidak bisa dihubungi: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		fatal("Status %d: %s", resp.StatusCode, string(body))
+		fatal("status %d: %s", resp.StatusCode, string(body))
 	}
-	fmt.Printf("OK (HTTP 200)\n      Output: %s\n", strings.TrimSpace(string(body)))
+	fmt.Println("ok")
 
-	fmt.Print("\n[2/6] Mengambil CSRF token dari GET /login... ")
+	fmt.Print("[2/6] ambil token CSRF... ")
 	resp, err = client.Get(baseURL + "/login")
 	if err != nil {
-		fatal("Gagal request /login: %v", err)
+		fatal("request /login gagal: %v", err)
 	}
 	resp.Body.Close()
 
@@ -56,11 +58,11 @@ func main() {
 		}
 	}
 	if csrfToken == "" {
-		fatal("Cookie csrf_token tidak ditemukan!")
+		fatal("cookie csrf_token tidak ada")
 	}
-	fmt.Printf("OK (Token: %s...)\n", csrfToken[:12])
+	fmt.Println("ok")
 
-	fmt.Print("\n[3/6] Menguji Autentikasi Admin (POST /login)... ")
+	fmt.Print("[3/6] login admin... ")
 	form := url.Values{
 		"username":   {"admin"},
 		"password":   {"Admin#Password123"},
@@ -72,7 +74,7 @@ func main() {
 
 	resp, err = client.Do(req)
 	if err != nil {
-		fatal("Login gagal: %v", err)
+		fatal("login gagal: %v", err)
 	}
 	resp.Body.Close()
 
@@ -84,14 +86,20 @@ func main() {
 		}
 	}
 	if !hasSession {
-		fatal("Login gagal: Cookie app_session_id tidak terpasang!")
+		fatal("login gagal, cookie session tidak ada")
 	}
-	fmt.Println("OK (Login Berhasil, Sesi Aktif)")
+	for _, c := range client.Jar.Cookies(u) {
+		if c.Name == "csrf_token" && c.Value != "" {
+			csrfToken = c.Value
+			break
+		}
+	}
+	fmt.Println("ok")
 
-	fmt.Print("\n[4/6] Menguji Orang A - Manajemen Pengguna (/api/admin/users)... ")
+	fmt.Print("[4/6] daftar user... ")
 	resp, err = client.Get(baseURL + "/api/admin/users")
 	if err != nil {
-		fatal("Gagal request /api/admin/users: %v", err)
+		fatal("request /api/admin/users gagal: %v", err)
 	}
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -105,8 +113,8 @@ func main() {
 		Total int `json:"total"`
 	}
 	_ = json.Unmarshal(body, &usersResp)
-	fmt.Printf("OK (Total User Terdaftar: %d)\n", usersResp.Total)
-	for i, usr := range usersResp.Users {
+	fmt.Printf("ok, %d user\n", len(usersResp.Users))
+	for _, usr := range usersResp.Users {
 		role := "User"
 		if usr.IsPlatformAdmin {
 			role = "Platform Admin"
@@ -115,19 +123,19 @@ func main() {
 		if !usr.IsActive {
 			status = "Nonaktif"
 		}
-		fmt.Printf("      - [%d] %-12s | %-15s | %s\n", i+1, usr.Username, role, status)
+		fmt.Printf("      %-12s %-15s %s\n", usr.Username, role, status)
 	}
 
-	fmt.Print("\n[5/6] Menguji Orang B - Koneksi Database Target (/api/admin/connections)... ")
+	fmt.Print("[5/6] koneksi database target... ")
 
 	connPayload := map[string]any{
-		"name":          "Target Local DB",
+		"name":          smokeConnectionName,
 		"description":   "Koneksi uji coba untuk E2E test",
 		"host":          "127.0.0.1",
 		"port":          5433,
-		"database_name": "platform_db",
-		"username":      "postgres",
-		"password":      "postgres",
+		"database_name": "sample_db",
+		"username":      "sample_app",
+		"password":      "sample_app",
 		"ssl_mode":      "disable",
 	}
 	pBytes, _ := json.Marshal(connPayload)
@@ -141,12 +149,10 @@ func main() {
 		body, _ = io.ReadAll(resp.Body)
 		resp.Body.Close()
 		var res struct {
-			Connection struct {
-				ID int64 `json:"id"`
-			} `json:"connection"`
+			ID int64 `json:"id"`
 		}
 		_ = json.Unmarshal(body, &res)
-		dbID = res.Connection.ID
+		dbID = res.ID
 	}
 
 	if dbID == 0 {
@@ -160,20 +166,23 @@ func main() {
 			} `json:"connections"`
 		}
 		_ = json.Unmarshal(body, &listRes)
-		if len(listRes.Connections) > 0 {
-			dbID = listRes.Connections[0].ID
+		for _, c := range listRes.Connections {
+			if c.Name == smokeConnectionName {
+				dbID = c.ID
+				break
+			}
 		}
 	}
 
 	if dbID == 0 {
-		fatal("Gagal memperoleh ID database target!")
+		fatal("tidak dapat ID koneksi target")
 	}
 
 	req, _ = http.NewRequest("POST", fmt.Sprintf("%s/api/admin/connections/%d/test", baseURL, dbID), nil)
 	req.Header.Set("X-CSRF-Token", csrfToken)
 	resp, err = client.Do(req)
 	if err != nil {
-		fatal("Test koneksi gagal: %v", err)
+		fatal("tes koneksi gagal: %v", err)
 	}
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -183,7 +192,7 @@ func main() {
 		ServerVersion string `json:"server_version"`
 	}
 	_ = json.Unmarshal(body, &testRes)
-	fmt.Printf("OK (Database ID: %d, Server: PostgreSQL %s, Latency: %d ms)\n", dbID, testRes.ServerVersion, testRes.LatencyMS)
+	fmt.Printf("ok, id %d, %d ms\n", dbID, testRes.LatencyMS)
 
 	resp, _ = client.Get(baseURL + "/api/authz/me")
 	body, _ = io.ReadAll(resp.Body)
@@ -204,10 +213,14 @@ func main() {
 	}
 	_ = json.Unmarshal(body, &grpRes)
 	var targetGroupID int64
-	if len(grpRes.Groups) > 0 {
-		targetGroupID = grpRes.Groups[0].ID
-	} else {
-		gPay, _ := json.Marshal(map[string]string{"name": "E2E Devs", "description": "Group for E2E testing"})
+	for _, g := range grpRes.Groups {
+		if g.Name == smokeGroupName {
+			targetGroupID = g.ID
+			break
+		}
+	}
+	if targetGroupID == 0 {
+		gPay, _ := json.Marshal(map[string]string{"name": smokeGroupName, "description": "Group for E2E testing"})
 		req, _ = http.NewRequest("POST", baseURL+"/api/admin/groups", strings.NewReader(string(gPay)))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-CSRF-Token", csrfToken)
@@ -215,12 +228,13 @@ func main() {
 		body, _ = io.ReadAll(resp.Body)
 		resp.Body.Close()
 		var gCreated struct {
-			Group struct {
-				ID int64 `json:"id"`
-			} `json:"group"`
+			ID int64 `json:"id"`
 		}
 		_ = json.Unmarshal(body, &gCreated)
-		targetGroupID = gCreated.Group.ID
+		targetGroupID = gCreated.ID
+	}
+	if targetGroupID == 0 {
+		fatal("tidak dapat ID group E2E")
 	}
 
 	mPay, _ := json.Marshal(map[string]string{"user_id": me.ID})
@@ -237,9 +251,9 @@ func main() {
 	resp, _ = client.Do(req)
 	resp.Body.Close()
 
-	fmt.Print("\n[6/6] Menguji Orang C - Migration Runner & Data Viewer...\n")
+	fmt.Print("[6/6] migration dan viewer\n")
 
-	fmt.Print("      [A] Menjalankan SQL Migration (CREATE TABLE + INSERT)... ")
+	fmt.Print("      jalankan migration... ")
 	testSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS e2e_smoke_test (
 			id SERIAL PRIMARY KEY,
@@ -258,7 +272,7 @@ func main() {
 	req.Header.Set("X-CSRF-Token", csrfToken)
 	resp, err = client.Do(req)
 	if err != nil {
-		fatal("Gagal eksekusi migration: %v", err)
+		fatal("migration gagal: %v", err)
 	}
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -272,15 +286,15 @@ func main() {
 	}
 	_ = json.Unmarshal(body, &migRes)
 	if migRes.Migration.Status != "success" {
-		fmt.Printf("Gagal: %s\n", string(body))
+		fmt.Printf("gagal: %s\n", string(body))
 	} else {
-		fmt.Printf("OK (Versi %d, Status: %s, Executor: %s)\n", migRes.Migration.Version, migRes.Migration.Status, migRes.Migration.Executor)
+		fmt.Printf("ok, v%d oleh %s\n", migRes.Migration.Version, migRes.Migration.Executor)
 	}
 
-	fmt.Print("      [B] Introspeksi Skema Database (/api/databases/:id/schema)... ")
+	fmt.Print("      cek schema... ")
 	resp, err = client.Get(fmt.Sprintf("%s/api/databases/%d/schema?schema=public", baseURL, dbID))
 	if err != nil {
-		fatal("Gagal introspeksi skema: %v", err)
+		fatal("ambil schema gagal: %v", err)
 	}
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -303,15 +317,15 @@ func main() {
 		}
 	}
 	if foundTable {
-		fmt.Printf("OK (Tabel 'e2e_smoke_test' ditemukan dengan %d kolom)\n", 3)
+		fmt.Println("ok, tabel e2e_smoke_test ada")
 	} else {
-		fmt.Printf("Tabel tidak ditemukan di skema public! Total tabel: %d\n", len(schemaRes.Tables))
+		fmt.Printf("tabel e2e_smoke_test tidak ada (%d tabel di public)\n", len(schemaRes.Tables))
 	}
 
-	fmt.Print("      [C] Membaca Data Tabel (/api/databases/:id/tables/e2e_smoke_test/data)... ")
+	fmt.Print("      baca data tabel... ")
 	resp, err = client.Get(fmt.Sprintf("%s/api/databases/%d/tables/e2e_smoke_test/data", baseURL, dbID))
 	if err != nil {
-		fatal("Gagal baca data tabel: %v", err)
+		fatal("baca data gagal: %v", err)
 	}
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -321,29 +335,19 @@ func main() {
 		Total   int64    `json:"total"`
 	}
 	_ = json.Unmarshal(body, &dataRes)
-	fmt.Printf("OK (Total Baris: %d, Kolom: %v)\n", dataRes.Total, dataRes.Columns)
-	if len(dataRes.Rows) > 0 {
-		fmt.Printf("          Nilai Baris Terakhir: %v\n", dataRes.Rows[len(dataRes.Rows)-1])
-	}
+	fmt.Printf("ok, %d baris\n", dataRes.Total)
 
-	fmt.Println("\n==================================================================")
-	fmt.Println("🛡️ BAGIAN II: PENGUJIAN EDGE CASES & ERROR CASES")
-	fmt.Println("==================================================================")
+	fmt.Println("\nkasus gagal:")
 
 	testEdgeAndErrorCases(baseURL, dbID, csrfToken, me.ID)
 
-	fmt.Println("\n==================================================================")
-	fmt.Println("🎉 SELURUH PENGUJIAN (HAPPY PATH & EDGE CASES) LULUS 100%!")
-	fmt.Println("   - Modul Orang A (Identity, Bcrypt, Session CSRF, User CRUD): PASS")
-	fmt.Println("   - Modul Orang B (RBAC Engine, Secretbox, Database Connections): PASS")
-	fmt.Println("   - Modul Orang C (Migration Rollback, Schema & Data Viewer, EXPLAIN): PASS")
-	fmt.Println("==================================================================")
+	fmt.Println("\nsemua lolos")
 }
 
 func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string) {
 	noCookieClient := &http.Client{Timeout: 5 * time.Second}
 
-	fmt.Print("\n[E1] Login dengan password salah... ")
+	fmt.Print("[E1] login dengan password salah... ")
 	wrongForm := url.Values{
 		"username":   {"admin"},
 		"password":   {"SalahPassword123#"},
@@ -362,21 +366,21 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 		}
 	}
 	if issuedSession {
-		fatal("Error Case Gagal: Sesi tetap dibuat meskipun password salah!")
+		fatal("session tetap dibuat padahal password salah")
 	}
-	fmt.Println("PASSED (Login ditolak, tidak ada sesi terpasang)")
+	fmt.Println("ok, ditolak")
 
-	fmt.Print("[E2] Proteksi CSRF: Request POST tanpa CSRF token... ")
+	fmt.Print("[E2] POST tanpa token CSRF... ")
 	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(`{"username":"csrf_victim","password":"Password#123"}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ = noCookieClient.Do(req)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusForbidden {
-		fatal("CSRF Bypass terdeteksi! Expected 403 Forbidden, got %d", resp.StatusCode)
+		fatal("harusnya 403, dapat %d", resp.StatusCode)
 	}
-	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
+	fmt.Println("ok, ditolak")
 
-	fmt.Print("[E3] Proteksi CSRF: Request POST dengan token palsu/manipulasi... ")
+	fmt.Print("[E3] POST dengan token CSRF palsu... ")
 	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(`{"username":"csrf_victim","password":"Password#123"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-CSRF-Token", "fake_invalid_token_1234567890abcdef")
@@ -384,11 +388,11 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	resp, _ = noCookieClient.Do(req)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusForbidden {
-		fatal("CSRF Validation gagal! Expected 403 Forbidden, got %d", resp.StatusCode)
+		fatal("harusnya 403, dapat %d", resp.StatusCode)
 	}
-	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
+	fmt.Println("ok, ditolak")
 
-	fmt.Print("[E4] Hak Akses RBAC: User biasa mengakses endpoint Platform Admin... ")
+	fmt.Print("[E4] user biasa buka endpoint admin... ")
 	aliceJar, _ := cookiejar.New(nil)
 	aliceClient := &http.Client{Jar: aliceJar, Timeout: 5 * time.Second}
 	_ = aliceClient
@@ -408,11 +412,11 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	resp, _ = aliceClient.Do(req)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusForbidden {
-		fatal("RBAC Breach! User biasa dapat mengakses /api/admin/users (Status %d)", resp.StatusCode)
+		fatal("user biasa bisa buka /api/admin/users (status %d)", resp.StatusCode)
 	}
-	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
+	fmt.Println("ok, ditolak")
 
-	fmt.Print("[E5] Integritas Akun: Admin mencoba menonaktifkan akunnya sendiri... ")
+	fmt.Print("[E5] admin menonaktifkan akun sendiri... ")
 	adminClient := &http.Client{
 		Timeout: 5 * time.Second,
 	}
@@ -426,11 +430,11 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
-		fatal("Platform Admin berhasil menonaktifkan dirinya sendiri! Status: %d", resp.StatusCode)
+		fatal("admin bisa menonaktifkan akun sendiri (status %d)", resp.StatusCode)
 	}
-	fmt.Printf("PASSED (Ditolak HTTP 400: %s)\n", strings.TrimSpace(string(body)))
+	fmt.Println("ok, ditolak")
 
-	fmt.Print("[E6] Validasi Input: Pembuatan user dengan password lemah (< 8 karakter)... ")
+	fmt.Print("[E6] buat user dengan password pendek... ")
 	invalidUserPayload := `{"username":"shortpwd_user","password":"123"}`
 	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(invalidUserPayload))
 	req.Header.Set("Content-Type", "application/json")
@@ -440,22 +444,22 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	resp, _ = adminClient.Do(req)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
-		fatal("Validasi password lemah gagal! Expected 400 Bad Request, got %d", resp.StatusCode)
+		fatal("harusnya 400, dapat %d", resp.StatusCode)
 	}
-	fmt.Println("PASSED (Ditolak HTTP 400 Bad Request)")
+	fmt.Println("ok, ditolak")
 
-	fmt.Print("[E7] Session Tampering: Mengakses endpoint dengan cookie sesi palsu... ")
+	fmt.Print("[E7] cookie session palsu... ")
 	tamperedClient := &http.Client{Timeout: 5 * time.Second}
 	req, _ = http.NewRequest("GET", baseURL+"/api/admin/users", nil)
 	req.AddCookie(&http.Cookie{Name: "app_session_id", Value: "tampered_session_token_1234567890abcdef"})
 	resp, _ = tamperedClient.Do(req)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
-		fatal("Session tampering tidak terdeteksi! Expected 401 Unauthorized, got %d", resp.StatusCode)
+		fatal("harusnya 401, dapat %d", resp.StatusCode)
 	}
-	fmt.Println("PASSED (Ditolak HTTP 401 Unauthorized)")
+	fmt.Println("ok, ditolak")
 
-	fmt.Print("[E8] Atomic Rollback: Migrasi dengan SQL sintaks salah... ")
+	fmt.Print("[E8] migration dengan SQL error... ")
 	errSQL := `
 		CREATE TABLE IF NOT EXISTS test_atomic_rollback (id serial primary key);
 		SINTAKS_NGASAL_ERROR_SAYA_BUAT_UNTUK_MENGUJI_ROLLBACK;
@@ -473,7 +477,7 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusUnprocessableEntity {
-		fatal("Migrasi sintaks salah tidak ditolak! Status: %d", resp.StatusCode)
+		fatal("migration error tidak ditolak (status %d)", resp.StatusCode)
 	}
 
 	req, _ = http.NewRequest("GET", fmt.Sprintf("%s/api/databases/%d/schema?schema=public", baseURL, dbID), nil)
@@ -482,11 +486,11 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if strings.Contains(string(body), "test_atomic_rollback") {
-		fatal("Atomic rollback gagal! Tabel parsial tetap terbuat di database!")
+		fatal("rollback gagal, tabelnya tetap terbuat")
 	}
-	fmt.Println("PASSED (Transaksi di-rollback 100%, tabel tidak tersimpan)")
+	fmt.Println("ok, di-rollback")
 
-	fmt.Print("[E9] Query Execution Plan: EXPLAIN pada DDL statement (CREATE TABLE)... ")
+	fmt.Print("[E9] EXPLAIN untuk CREATE TABLE... ")
 	expDDL := `CREATE TABLE test_sample (id int);`
 	req, _ = http.NewRequest("POST", fmt.Sprintf("%s/api/databases/%d/migrations/explain", baseURL, dbID), strings.NewReader(fmt.Sprintf(`{"sql":"%s","analyze":false}`, expDDL)))
 	req.Header.Set("Content-Type", "application/json")
@@ -497,9 +501,9 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if !strings.Contains(string(body), "is_explainable\":false") {
-		fatal("EXPLAIN pada DDL tidak ditangani secara graceful: %s", string(body))
+		fatal("respons EXPLAIN untuk DDL tidak sesuai: %s", string(body))
 	}
-	fmt.Println("PASSED (Diberi penjelasan informatif bahwa DDL tidak menggunakan optimizer)")
+	fmt.Println("ok, dilewati")
 }
 
 func getAdminToken(baseURL, csrfToken string) string {
@@ -527,6 +531,6 @@ func getAdminToken(baseURL, csrfToken string) string {
 }
 
 func fatal(format string, args ...any) {
-	fmt.Printf("\n❌ GAGAL: "+format+"\n", args...)
+	fmt.Printf("\ngagal: "+format+"\n", args...)
 	os.Exit(1)
 }

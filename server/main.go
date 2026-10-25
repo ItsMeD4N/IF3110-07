@@ -8,6 +8,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/app"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/migration"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 	"github.com/ItsMeD4N/IF3110-07/server/migrations"
 )
@@ -23,6 +24,12 @@ func main() {
 
 	if err := migrations.Apply(context.Background(), db); err != nil {
 		log.Fatalf("migrasi database platform gagal: %v", err)
+	}
+
+	if n, err := migration.RecoverInterrupted(context.Background(), db); err != nil {
+		log.Fatal(err)
+	} else if n > 0 {
+		log.Printf("%d migration yang masih running ditandai failed (server sempat mati)", n)
 	}
 
 	clientDir, err := web.FindClientDir()

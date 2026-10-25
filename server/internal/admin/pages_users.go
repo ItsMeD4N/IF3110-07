@@ -128,7 +128,7 @@ func (m *Module) pageUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isSelf(r, u.ID) && (!form.IsActive || !form.IsPlatformAdmin) {
-		m.renderUserDetail(w, r, http.StatusUnprocessableEntity, u, "Anda tidak dapat menonaktifkan atau mencabut status admin akun sendiri.")
+		m.renderUserDetail(w, r, http.StatusUnprocessableEntity, u, "Kamu tidak bisa menonaktifkan akun sendiri atau mencabut status admin-mu sendiri.")
 		return
 	}
 	err := m.Users.Update(r.Context(), u.ID, form.Username, form.IsPlatformAdmin, form.IsActive)
@@ -200,7 +200,7 @@ func (m *Module) pageDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isSelf(r, u.ID) {
-		m.renderUserDetail(w, r, http.StatusUnprocessableEntity, u, "Anda tidak dapat menghapus akun sendiri.")
+		m.renderUserDetail(w, r, http.StatusUnprocessableEntity, u, "Kamu tidak bisa menghapus akun sendiri.")
 		return
 	}
 	if err := m.Users.Delete(r.Context(), u.ID); err != nil {

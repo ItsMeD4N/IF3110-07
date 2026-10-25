@@ -275,3 +275,59 @@ func TestPages_EditorDraftHistory(t *testing.T) {
 	}
 	apptest.Expect(t, f.e.Do(f.outsider, "GET", base+"/history", nil), http.StatusNotFound)
 }
+
+func TestExplain_AccessControl(t *testing.T) {
+	f := setup(t)
+	tbl := f.table("explain_t")
+	apptest.Expect(t, f.e.Do(f.editor, "POST", f.path("/migrations"), map[string]string{"sql": fmt.Sprintf("CREATE TABLE %s (id int primary key); INSERT INTO %s VALUES (1), (2)", tbl, tbl)}), http.StatusOK)
+
+	insert := fmt.Sprintf("INSERT INTO %s VALUES (3)", tbl)
+	explain := f.path("/migrations/explain")
+
+	apptest.Expect(t, f.e.Do(f.viewer, "POST", explain, map[string]any{"sql": insert, "analyze": true}), http.StatusForbidden)
+	apptest.Expect(t, f.e.Do(f.viewer, "POST", explain, map[string]any{"sql": insert, "analyze": false}), http.StatusOK)
+	apptest.Expect(t, f.e.Do(f.viewer, "POST", explain, map[string]any{"sql": "SELECT * FROM " + tbl, "analyze": false}), http.StatusOK)
+	apptest.Expect(t, f.e.Do(f.outsider, "POST", explain, map[string]any{"sql": insert, "analyze": false}), http.StatusNotFound)
+	apptest.Expect(t, f.e.Do(nil, "POST", explain, map[string]any{"sql": insert, "analyze": false}), http.StatusUnauthorized)
+
+	rec := f.e.Do(f.editor, "POST", explain, map[string]any{"sql": insert, "analyze": true})
+	apptest.Expect(t, rec, http.StatusOK)
+	res := apptest.Decode[migration.ExplainResponse](t, rec)
+	if len(res.Results) != 1 || !res.Results[0].AnalyzeMode || res.Results[0].Summary.ActualTimeMS == nil {
+		t.Fatalf("hasil EXPLAIN ANALYZE tidak lengkap: %+v", res)
+	}
+
+	var n int
+	if err := f.target.QueryRow("SELECT count(*) FROM " + tbl).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("EXPLAIN mengubah data: jumlah baris = %d, want 2", n)
+	}
+}
+
+func TestRecoverInterrupted(t *testing.T) {
+	f := setup(t)
+	db := testutil.OpenDB(t)
+	var id int64
+	if err := db.QueryRow(`INSERT INTO platform_migration_history (database_id, version, name, sql_text, executor, status)
+		VALUES ($1, 1, 'stuck', 'SELECT 1', 'tester', 'running') RETURNING id`, f.dbID).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := migration.RecoverInterrupted(t.Context(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n < 1 {
+		t.Fatalf("RecoverInterrupted mengubah %d baris, want >= 1", n)
+	}
+
+	var status, msg string
+	if err := db.QueryRow(`SELECT status, COALESCE(error_message, '') FROM platform_migration_history WHERE id = $1`, id).Scan(&status, &msg); err != nil {
+		t.Fatal(err)
+	}
+	if status != "failed" || msg == "" {
+		t.Fatalf("status = %q, error = %q; want failed dengan pesan", status, msg)
+	}
+}

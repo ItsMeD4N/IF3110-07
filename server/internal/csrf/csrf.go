@@ -44,6 +44,26 @@ func GenerateToken() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+func setCookie(w http.ResponseWriter, token string, secure bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     CSRFCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func Rotate(w http.ResponseWriter, secure bool) (string, error) {
+	token, err := GenerateToken()
+	if err != nil {
+		return "", err
+	}
+	setCookie(w, token, secure)
+	return token, nil
+}
+
 func Middleware(isProd bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,14 +76,7 @@ func Middleware(isProd bool) func(http.Handler) http.Handler {
 					newToken, genErr := GenerateToken()
 					if genErr == nil {
 						token = newToken
-						http.SetCookie(w, &http.Cookie{
-							Name:     CSRFCookieName,
-							Value:    token,
-							Path:     "/",
-							HttpOnly: false,
-							Secure:   isProd,
-							SameSite: http.SameSiteLaxMode,
-						})
+						setCookie(w, token, isProd)
 					}
 				} else {
 					token = cookie.Value

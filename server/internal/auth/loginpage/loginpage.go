@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 )
@@ -14,8 +15,8 @@ const AfterLoginPath = "/databases"
 
 const (
 	msgInvalid  = "Username atau password salah."
-	msgInactive = "Akun Anda telah dinonaktifkan. Silakan hubungi Platform Admin."
-	msgInternal = "Terjadi kesalahan pada server. Coba lagi."
+	msgInactive = "Akun kamu sudah dinonaktifkan. Hubungi Platform Admin."
+	msgInternal = "Ada masalah di server. Coba lagi."
 )
 
 type Handler struct {
@@ -83,6 +84,7 @@ func (h *Handler) postLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.sessions.SetCookie(w, token, sess.AbsoluteExpiresAt)
+	_, _ = csrf.Rotate(w, h.sessions.SecureCookies())
 	web.Redirect(w, r, AfterLoginPath)
 }
 
@@ -92,6 +94,6 @@ func (h *Handler) postLogout(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.sessions.ClearCookie(w)
 	}
-	web.SetFlash(w, "success", "Anda telah keluar.")
+	web.SetFlash(w, "success", "Kamu sudah keluar.")
 	web.Redirect(w, r, "/login")
 }

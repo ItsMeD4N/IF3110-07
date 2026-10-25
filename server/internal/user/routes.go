@@ -241,7 +241,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Anda tidak dapat menonaktifkan akun Platform Admin Anda sendiri",
+			"error": "Kamu tidak bisa menonaktifkan akun sendiri",
 		})
 		return
 	}
@@ -393,7 +393,7 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Anda tidak dapat menghapus akun Platform Admin Anda sendiri",
+			"error": "Kamu tidak bisa menghapus akun sendiri",
 		})
 		return
 	}

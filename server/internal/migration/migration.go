@@ -194,6 +194,18 @@ func (m *Module) markFailed(ctx context.Context, rec *Record, runErr error) {
 	}
 }
 
+const interruptedMessage = "Server mati sebelum migration selesai tercatat. Cek database target untuk memastikan perubahannya sudah masuk atau belum."
+
+func RecoverInterrupted(ctx context.Context, db *sql.DB) (int64, error) {
+	res, err := db.ExecContext(ctx, `
+		UPDATE platform_migration_history SET status = 'failed', error_message = $1
+		WHERE status = 'running'`, interruptedMessage)
+	if err != nil {
+		return 0, fmt.Errorf("gagal memulihkan migration yang terhenti: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 const recordColumns = `id, database_id, version, name, sql_text, executor, executed_at, status, COALESCE(error_message, '')`
 
 func scanRecord(row interface{ Scan(...any) error }) (Record, error) {

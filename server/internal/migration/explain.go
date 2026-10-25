@@ -8,10 +8,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 )
+
+const explainStatementTimeout = 10 * time.Second
 
 type ExplainRequest struct {
 	SQL     string `json:"sql"`
@@ -133,16 +137,23 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	access, _ := authz.DBAccessFrom(r.Context())
+	canExecute := access.Can(authz.PermDBExecuteMigration)
+	if analyze && !canExecute {
+		httpx.WriteError(w, http.StatusForbidden, httpx.CodeForbidden, "EXPLAIN ANALYZE benar-benar menjalankan query, jadi cuma bisa dipakai dengan akses View + Edit. Pakai EXPLAIN biasa saja.")
+		return
+	}
+
 	targetDB, err := m.Conns.Pool(r.Context(), id)
 	if err != nil {
 		writeDBError(w, r, err)
 		return
 	}
 
-	results, err := runExplain(r.Context(), targetDB, sqlText, analyze)
+	results, err := runExplain(r.Context(), targetDB, sqlText, analyze, !canExecute)
 	if err != nil {
 		httpx.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
-			"error":  "Gagal menganalisis query execution plan",
+			"error":  "EXPLAIN gagal dijalankan",
 			"detail": err.Error(),
 		})
 		return
@@ -155,7 +166,10 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) ([]SingleExplainResult, error) {
+func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze, readOnly bool) ([]SingleExplainResult, error) {
+	if analyze && readOnly {
+		return nil, fmt.Errorf("EXPLAIN ANALYZE tidak dapat dijalankan dalam mode read-only")
+	}
 	stmts := splitStatements(sqlText)
 	if len(stmts) == 0 {
 		return nil, fmt.Errorf("tidak ada statement SQL yang ditemukan")
@@ -180,12 +194,12 @@ func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) (
 			results = append(results, SingleExplainResult{
 				Statement:     clean,
 				IsExplainable: false,
-				Note:          fmt.Sprintf("Pernyataan '%s' merupakan DDL/Utility statement. PostgreSQL tidak menggunakan cost-based query optimizer untuk operasi DDL/Utility ini.", firstWord),
+				Note:          fmt.Sprintf("%s tidak punya execution plan, jadi dilewati.", firstWord),
 			})
 			continue
 		}
 
-		res, err := explainSingleStatement(ctx, conn, clean, analyze)
+		res, err := explainSingleStatement(ctx, conn, clean, analyze, readOnly)
 		if err != nil {
 			return nil, fmt.Errorf("error pada statement '%s...': %w", truncate(clean, 40), err)
 		}
@@ -195,9 +209,8 @@ func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) (
 	return results, nil
 }
 
-func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, analyze bool) (SingleExplainResult, error) {
-
-	tx, err := conn.BeginTx(ctx, nil)
+func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, analyze, readOnly bool) (SingleExplainResult, error) {
+	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: readOnly})
 	if err != nil {
 		return SingleExplainResult{}, err
 	}
@@ -205,6 +218,10 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 	defer func() {
 		_ = tx.Rollback()
 	}()
+
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", explainStatementTimeout.Milliseconds())); err != nil {
+		return SingleExplainResult{}, err
+	}
 
 	explainCmd := "EXPLAIN (VERBOSE, BUFFERS, COSTS, FORMAT JSON"
 	if analyze {
@@ -215,24 +232,6 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 	var jsonRaw string
 	if err := tx.QueryRowContext(ctx, explainCmd).Scan(&jsonRaw); err != nil {
 		return SingleExplainResult{}, err
-	}
-
-	textCmd := "EXPLAIN (VERBOSE, BUFFERS, COSTS, FORMAT TEXT"
-	if analyze {
-		textCmd = "EXPLAIN (ANALYZE, VERBOSE, BUFFERS, COSTS, FORMAT TEXT"
-	}
-	textCmd += ") " + query
-
-	rows, err := tx.QueryContext(ctx, textCmd)
-	var textLines []string
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var line string
-			if err := rows.Scan(&line); err == nil {
-				textLines = append(textLines, line)
-			}
-		}
 	}
 
 	var wrappers []rawWrapper
@@ -253,9 +252,74 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 		AnalyzeMode:   analyze,
 		Summary:       summary,
 		RootNode:      &rootNode,
-		RawText:       strings.Join(textLines, "\n"),
+		RawText:       formatPlanText(w),
 		SafeRollback:  true,
 	}, nil
+}
+
+func formatPlanText(w rawWrapper) string {
+	var lines []string
+	var walk func(n rawNode, depth int)
+	walk = func(n rawNode, depth int) {
+		indent := ""
+		detailIndent := "  "
+		if depth > 0 {
+			indent = strings.Repeat("      ", depth-1) + "  ->  "
+			detailIndent = strings.Repeat("      ", depth) + "  "
+		}
+
+		label := n.NodeType
+		if n.IndexName != "" {
+			label += " using " + n.IndexName
+		}
+		if n.RelationName != "" {
+			rel := n.RelationName
+			if n.Schema != "" {
+				rel = n.Schema + "." + rel
+			}
+			label += " on " + rel
+			if n.Alias != "" && n.Alias != n.RelationName {
+				label += " " + n.Alias
+			}
+		}
+
+		line := fmt.Sprintf("%s%s  (cost=%.2f..%.2f rows=%d)", indent, label, n.StartupCost, n.TotalCost, int64(n.PlanRows))
+		if n.ActualTotalTime != nil && n.ActualRows != nil {
+			startup := 0.0
+			if n.ActualStartupTime != nil {
+				startup = *n.ActualStartupTime
+			}
+			loops := int64(1)
+			if n.ActualLoops != nil {
+				loops = int64(*n.ActualLoops)
+			}
+			line += fmt.Sprintf(" (actual time=%.3f..%.3f rows=%d loops=%d)", startup, *n.ActualTotalTime, int64(*n.ActualRows), loops)
+		}
+		lines = append(lines, line)
+
+		if n.HashCond != "" {
+			lines = append(lines, detailIndent+"Hash Cond: "+n.HashCond)
+		}
+		if n.IndexCond != "" {
+			lines = append(lines, detailIndent+"Index Cond: "+n.IndexCond)
+		}
+		if n.Filter != "" {
+			lines = append(lines, detailIndent+"Filter: "+n.Filter)
+		}
+
+		for _, child := range n.Plans {
+			walk(child, depth+1)
+		}
+	}
+	walk(w.Plan, 0)
+
+	if w.PlanningTime != nil {
+		lines = append(lines, fmt.Sprintf("Planning Time: %.3f ms", *w.PlanningTime))
+	}
+	if w.ExecutionTime != nil {
+		lines = append(lines, fmt.Sprintf("Execution Time: %.3f ms", *w.ExecutionTime))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func convertNode(r rawNode) PlanNode {
@@ -310,7 +374,7 @@ func buildSummary(w rawWrapper) PlanSummary {
 			}
 			if n.NodeType == "Seq Scan" && n.RelationName != "" {
 				hasSeqScan = true
-				warnings = append(warnings, fmt.Sprintf("Sequential Scan (full-table scan) terdeteksi pada tabel '%s'.", n.RelationName))
+				warnings = append(warnings, fmt.Sprintf("Ada Seq Scan di tabel %s.", n.RelationName))
 			}
 		}
 
@@ -334,7 +398,7 @@ func buildSummary(w rawWrapper) PlanSummary {
 	walk(w.Plan)
 
 	if w.Plan.TotalCost > 1000.0 {
-		warnings = append(warnings, fmt.Sprintf("Estimated Total Cost cukup tinggi (%.2f). Pertimbangkan optimasi query atau penambahan index.", w.Plan.TotalCost))
+		warnings = append(warnings, fmt.Sprintf("Total cost-nya cukup tinggi (%.2f), mungkin perlu index.", w.Plan.TotalCost))
 	}
 
 	var rowsProcessed *int64
