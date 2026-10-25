@@ -22,7 +22,6 @@ type Flash struct {
 	Message string
 }
 
-// TemplateData adalah data standar yang dikirim ke setiap template Go
 type TemplateData struct {
 	Title        string
 	User         *auth.User
@@ -37,8 +36,6 @@ type TemplateData struct {
 	Data         interface{}
 }
 
-
-// Engine bertanggung jawab untuk kompilasi dan rendering Go HTML Templates
 type Engine struct {
 	templatesDir string
 	isDev        bool
@@ -47,7 +44,6 @@ type Engine struct {
 	funcMap      template.FuncMap
 }
 
-// NewEngine membuat instance template engine baru
 func NewEngine(templatesDir string, isDev bool) *Engine {
 	e := &Engine{
 		templatesDir: templatesDir,
@@ -86,21 +82,18 @@ func NewEngine(templatesDir string, isDev bool) *Engine {
 				return csrf.TemplateField(token)
 			},
 		},
-
 	}
 	return e
 }
 
-// Render me-render template halaman dengan base layout
 func (e *Engine) Render(w http.ResponseWriter, r *http.Request, statusCode int, pageTemplate string, data TemplateData) {
-	// Auto-inject CurrentUser dari context jika belum diset
+
 	if data.CurrentUser == nil {
 		data.CurrentUser = auth.CurrentUser(r.Context())
 	}
 	data.User = data.CurrentUser
 	data.Path = r.URL.Path
 
-	// Auto-inject CSRFToken dari context jika belum diset
 	if data.CSRFToken == "" {
 		data.CSRFToken = csrf.Token(r.Context())
 		if data.CSRFToken == "" {
@@ -111,7 +104,6 @@ func (e *Engine) Render(w http.ResponseWriter, r *http.Request, statusCode int, 
 	}
 	data.CSRFField = csrf.TemplateField(data.CSRFToken)
 
-	// Auto-inject Flash Message dari Cookie jika belum ada
 	if data.FlashSuccess == "" && data.FlashError == "" {
 		s, errStr := PopFlashes(w, r)
 		data.FlashSuccess = s
@@ -123,7 +115,6 @@ func (e *Engine) Render(w http.ResponseWriter, r *http.Request, statusCode int, 
 		}
 	}
 
-
 	tmpl, err := e.getTemplate(pageTemplate)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Template error: %v", err), http.StatusInternalServerError)
@@ -134,12 +125,11 @@ func (e *Engine) Render(w http.ResponseWriter, r *http.Request, statusCode int, 
 	w.WriteHeader(statusCode)
 
 	if err := tmpl.ExecuteTemplate(w, "base", data); err != nil {
-		// Log template execution error jika terjadi
+
 		fmt.Fprintf(os.Stderr, "[View] Error executing template %s: %v\n", pageTemplate, err)
 	}
 }
 
-// getTemplate mengambil template dari cache atau mem-parse file dari filesystem
 func (e *Engine) getTemplate(pageTemplate string) (*template.Template, error) {
 	if !e.isDev {
 		e.mu.RLock()
@@ -150,7 +140,6 @@ func (e *Engine) getTemplate(pageTemplate string) (*template.Template, error) {
 		}
 	}
 
-	// Kumpulkan file: base layout + partials + target page template
 	files := []string{
 		filepath.Join(e.templatesDir, "layouts", "base.html"),
 		filepath.Join(e.templatesDir, "layouts", "navbar.html"),
@@ -158,7 +147,6 @@ func (e *Engine) getTemplate(pageTemplate string) (*template.Template, error) {
 		filepath.Join(e.templatesDir, pageTemplate),
 	}
 
-	// Verifikasi apakah file layout dan template ada
 	for _, f := range files {
 		if _, err := os.Stat(f); err != nil {
 			return nil, fmt.Errorf("file template tidak ditemukan (%s): %w", f, err)
@@ -179,7 +167,6 @@ func (e *Engine) getTemplate(pageTemplate string) (*template.Template, error) {
 	return tmpl, nil
 }
 
-// SetFlashSuccess memasang flash message sukses pada cookie
 func SetFlashSuccess(w http.ResponseWriter, message string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "flash_success",
@@ -200,7 +187,6 @@ func SetFlashSuccess(w http.ResponseWriter, message string) {
 	})
 }
 
-// SetFlashError memasang flash message error pada cookie
 func SetFlashError(w http.ResponseWriter, message string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "flash_error",
@@ -221,7 +207,6 @@ func SetFlashError(w http.ResponseWriter, message string) {
 	})
 }
 
-// PopFlashes membaca dan menghapus flash message dari cookie
 func PopFlashes(w http.ResponseWriter, r *http.Request) (success string, errStr string) {
 	if c, err := r.Cookie("flash_success"); err == nil && c.Value != "" {
 		if val, err := url.QueryUnescape(c.Value); err == nil {

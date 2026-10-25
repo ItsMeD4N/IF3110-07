@@ -13,13 +13,11 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 )
 
-// ExplainRequest mendefinisikan payload untuk analisis query execution plan
 type ExplainRequest struct {
 	SQL     string `json:"sql"`
-	Analyze bool   `json:"analyze"` // Jika true, jalankan EXPLAIN ANALYZE dalam safe transaction rollback
+	Analyze bool   `json:"analyze"`
 }
 
-// PlanNode merepresentasikan node dalam pohon execution plan PostgreSQL
 type PlanNode struct {
 	NodeType          string     `json:"node_type"`
 	RelationName      string     `json:"relation_name,omitempty"`
@@ -40,41 +38,37 @@ type PlanNode struct {
 	Plans             []PlanNode `json:"plans,omitempty"`
 }
 
-// PlanSummary merangkum poin-poin penting analisis sesuai spesifikasi tugas besar
 type PlanSummary struct {
-	ScanTypes      []string `json:"scan_types"`       // Jenis scan: Seq Scan, Index Scan, Bitmap Heap Scan, dll
-	IndexesUsed    []string `json:"indexes_used"`     // Index yang digunakan
-	JoinStrategies []string `json:"join_strategies"`  // Join strategy: Hash Join, Nested Loop, Merge Join, dll
-	StartupCost    float64  `json:"startup_cost"`     // Estimated cost awal
-	TotalCost      float64  `json:"total_cost"`       // Estimated cost total
-	ActualTimeMS   *float64 `json:"actual_time_ms,omitempty"`   // Actual execution time (ms) jika ANALYZE aktif
-	PlanningTimeMS *float64 `json:"planning_time_ms,omitempty"` // Planning time (ms)
-	RowsPlanned    int64    `json:"rows_planned"`               // Estimasi jumlah row
-	RowsProcessed  *int64   `json:"rows_processed,omitempty"`   // Jumlah row aktual yang diproses
-	HasSeqScan     bool     `json:"has_seq_scan"`               // Indikasi ada full table scan
-	Warnings       []string `json:"warnings"`                   // Saran optimasi / catatan performa
+	ScanTypes      []string `json:"scan_types"`
+	IndexesUsed    []string `json:"indexes_used"`
+	JoinStrategies []string `json:"join_strategies"`
+	StartupCost    float64  `json:"startup_cost"`
+	TotalCost      float64  `json:"total_cost"`
+	ActualTimeMS   *float64 `json:"actual_time_ms,omitempty"`
+	PlanningTimeMS *float64 `json:"planning_time_ms,omitempty"`
+	RowsPlanned    int64    `json:"rows_planned"`
+	RowsProcessed  *int64   `json:"rows_processed,omitempty"`
+	HasSeqScan     bool     `json:"has_seq_scan"`
+	Warnings       []string `json:"warnings"`
 }
 
-// SingleExplainResult menyimpan hasil analisis untuk satu statement SQL
 type SingleExplainResult struct {
-	Statement    string      `json:"statement"`
-	IsExplainable bool       `json:"is_explainable"`
-	Note         string      `json:"note,omitempty"`
-	AnalyzeMode  bool        `json:"analyze_mode"`
-	Summary      PlanSummary `json:"summary"`
-	RootNode     *PlanNode   `json:"root_node,omitempty"`
-	RawText      string      `json:"raw_text,omitempty"`
-	SafeRollback bool        `json:"safe_rollback"`
+	Statement     string      `json:"statement"`
+	IsExplainable bool        `json:"is_explainable"`
+	Note          string      `json:"note,omitempty"`
+	AnalyzeMode   bool        `json:"analyze_mode"`
+	Summary       PlanSummary `json:"summary"`
+	RootNode      *PlanNode   `json:"root_node,omitempty"`
+	RawText       string      `json:"raw_text,omitempty"`
+	SafeRollback  bool        `json:"safe_rollback"`
 }
 
-// ExplainResponse adalah respons menyeluruh dari endpoint EXPLAIN
 type ExplainResponse struct {
 	DatabaseID   int64                 `json:"database_id"`
 	TotalQueries int                   `json:"total_queries"`
 	Results      []SingleExplainResult `json:"results"`
 }
 
-// Struktur internal untuk unmarshaling output JSON dari PostgreSQL
 type rawWrapper struct {
 	Plan          rawNode  `json:"Plan"`
 	PlanningTime  *float64 `json:"Planning Time"`
@@ -93,18 +87,17 @@ type rawNode struct {
 	HashCond          string    `json:"Hash Cond"`
 	StartupCost       float64   `json:"Startup Cost"`
 	TotalCost         float64   `json:"Total Cost"`
-	PlanRows          int64     `json:"Plan Rows"`
+	PlanRows          float64   `json:"Plan Rows"`
 	ActualStartupTime *float64  `json:"Actual Startup Time"`
 	ActualTotalTime   *float64  `json:"Actual Total Time"`
-	ActualRows        *int64    `json:"Actual Rows"`
-	ActualLoops       *int64    `json:"Actual Loops"`
+	ActualRows        *float64  `json:"Actual Rows"`
+	ActualLoops       *float64  `json:"Actual Loops"`
 	Plans             []rawNode `json:"Plans"`
 }
 
-// apiExplain menangani request POST /api/databases/{dbID}/migrations/explain
 func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
-	id, ok := databaseID(r)
-	if !ok {
+	id := dbID(r)
+	if id <= 0 {
 		httpx.WriteError(w, http.StatusBadRequest, httpx.CodeBadRequest, "ID database tidak valid")
 		return
 	}
@@ -112,7 +105,6 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 	sqlText := ""
 	analyze := false
 
-	// Cek apakah request berupa form-urlencoded atau JSON
 	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {
 		var req ExplainRequest
@@ -141,7 +133,6 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Eksekusi analisis pada database target
 	targetDB, err := m.Conns.Pool(r.Context(), id)
 	if err != nil {
 		writeDBError(w, r, err)
@@ -164,7 +155,6 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// runExplain mengeksekusi EXPLAIN terhadap setiap statement SQL dalam transaksi aman dengan rollback
 func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) ([]SingleExplainResult, error) {
 	stmts := splitStatements(sqlText)
 	if len(stmts) == 0 {
@@ -195,7 +185,6 @@ func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) (
 			continue
 		}
 
-		// Jalankan dalam transaksi dengan ROLLBACK agar EXPLAIN ANALYZE tidak mengubah state target!
 		res, err := explainSingleStatement(ctx, conn, clean, analyze)
 		if err != nil {
 			return nil, fmt.Errorf("error pada statement '%s...': %w", truncate(clean, 40), err)
@@ -207,12 +196,12 @@ func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) (
 }
 
 func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, analyze bool) (SingleExplainResult, error) {
-	// Buka transaksi eksplisit
+
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return SingleExplainResult{}, err
 	}
-	// Pastikan SELALU di-rollback!
+
 	defer func() {
 		_ = tx.Rollback()
 	}()
@@ -228,7 +217,6 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 		return SingleExplainResult{}, err
 	}
 
-	// Ambil juga versi TEXT untuk DBA view
 	textCmd := "EXPLAIN (VERBOSE, BUFFERS, COSTS, FORMAT TEXT"
 	if analyze {
 		textCmd = "EXPLAIN (ANALYZE, VERBOSE, BUFFERS, COSTS, FORMAT TEXT"
@@ -266,11 +254,22 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 		Summary:       summary,
 		RootNode:      &rootNode,
 		RawText:       strings.Join(textLines, "\n"),
-		SafeRollback:  true, // Transaksi selalu di-rollback
+		SafeRollback:  true,
 	}, nil
 }
 
 func convertNode(r rawNode) PlanNode {
+	var actualRows *int64
+	if r.ActualRows != nil {
+		v := int64(*r.ActualRows)
+		actualRows = &v
+	}
+	var actualLoops *int64
+	if r.ActualLoops != nil {
+		v := int64(*r.ActualLoops)
+		actualLoops = &v
+	}
+
 	n := PlanNode{
 		NodeType:          r.NodeType,
 		RelationName:      r.RelationName,
@@ -283,11 +282,11 @@ func convertNode(r rawNode) PlanNode {
 		HashCond:          r.HashCond,
 		StartupCost:       r.StartupCost,
 		TotalCost:         r.TotalCost,
-		PlanRows:          r.PlanRows,
+		PlanRows:          int64(r.PlanRows),
 		ActualStartupTime: r.ActualStartupTime,
 		ActualTotalTime:   r.ActualTotalTime,
-		ActualRows:        r.ActualRows,
-		ActualLoops:       r.ActualLoops,
+		ActualRows:        actualRows,
+		ActualLoops:       actualLoops,
 	}
 	for _, child := range r.Plans {
 		n.Plans = append(n.Plans, convertNode(child))
@@ -304,7 +303,7 @@ func buildSummary(w rawWrapper) PlanSummary {
 
 	var walk func(n rawNode)
 	walk = func(n rawNode) {
-		// 1. Jenis scan
+
 		if strings.Contains(n.NodeType, "Scan") {
 			if !containsStr(scanTypes, n.NodeType) {
 				scanTypes = append(scanTypes, n.NodeType)
@@ -315,14 +314,12 @@ func buildSummary(w rawWrapper) PlanSummary {
 			}
 		}
 
-		// 2. Penggunaan index
 		if n.IndexName != "" {
 			if !containsStr(indexesUsed, n.IndexName) {
 				indexesUsed = append(indexesUsed, n.IndexName)
 			}
 		}
 
-		// 3. Join strategy
 		if strings.Contains(n.NodeType, "Join") || strings.Contains(n.NodeType, "Nested Loop") {
 			if !containsStr(joinStrategies, n.NodeType) {
 				joinStrategies = append(joinStrategies, n.NodeType)
@@ -340,6 +337,12 @@ func buildSummary(w rawWrapper) PlanSummary {
 		warnings = append(warnings, fmt.Sprintf("Estimated Total Cost cukup tinggi (%.2f). Pertimbangkan optimasi query atau penambahan index.", w.Plan.TotalCost))
 	}
 
+	var rowsProcessed *int64
+	if w.Plan.ActualRows != nil {
+		v := int64(*w.Plan.ActualRows)
+		rowsProcessed = &v
+	}
+
 	s := PlanSummary{
 		ScanTypes:      scanTypes,
 		IndexesUsed:    indexesUsed,
@@ -348,8 +351,8 @@ func buildSummary(w rawWrapper) PlanSummary {
 		TotalCost:      w.Plan.TotalCost,
 		PlanningTimeMS: w.PlanningTime,
 		ActualTimeMS:   w.ExecutionTime,
-		RowsPlanned:    w.Plan.PlanRows,
-		RowsProcessed:  w.Plan.ActualRows,
+		RowsPlanned:    int64(w.Plan.PlanRows),
+		RowsProcessed:  rowsProcessed,
 		HasSeqScan:     hasSeqScan,
 		Warnings:       warnings,
 	}
@@ -377,35 +380,6 @@ func isExplainable(word string) bool {
 	default:
 		return false
 	}
-}
-
-func splitStatements(sql string) []string {
-	var stmts []string
-	var current strings.Builder
-	inSingleQuote := false
-	inDoubleQuote := false
-
-	for i := 0; i < len(sql); i++ {
-		ch := sql[i]
-		if ch == '\'' && !inDoubleQuote {
-			inSingleQuote = !inSingleQuote
-		} else if ch == '"' && !inSingleQuote {
-			inDoubleQuote = !inDoubleQuote
-		}
-
-		if ch == ';' && !inSingleQuote && !inDoubleQuote {
-			if s := strings.TrimSpace(current.String()); s != "" {
-				stmts = append(stmts, s)
-			}
-			current.Reset()
-			continue
-		}
-		current.WriteByte(ch)
-	}
-	if s := strings.TrimSpace(current.String()); s != "" {
-		stmts = append(stmts, s)
-	}
-	return stmts
 }
 
 func cleanSQL(s string) string {

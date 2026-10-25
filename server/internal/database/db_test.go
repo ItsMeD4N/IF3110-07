@@ -17,7 +17,6 @@ func TestInitDB_Integration(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Pastikan query ke tabel users dan sessions berhasil
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {

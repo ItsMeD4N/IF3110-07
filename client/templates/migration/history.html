@@ -1,15 +1,33 @@
-{{define "title"}}Migration History{{end}}
+{{define "title"}}Riwayat migration{{end}}
 {{define "content"}}
 {{$id := .Data.DatabaseID}}
+<p class="crumb"><a href="/databases/{{$id}}">Database</a> / <a href="/databases/{{$id}}/migrations">Migration</a> / Riwayat</p>
 <header class="page-header">
-  <div><p class="crumb"><a href="/databases/{{$id}}">Database</a> / <a href="/databases/{{$id}}/migrations">SQL Migration</a> / History</p><h1>Migration History</h1><p class="muted">Versi diurutkan berdasarkan waktu eksekusi terbaru.</p></div>
-  <a class="btn" href="/databases/{{$id}}/migrations">SQL Migration</a>
+  <div>
+    <h1>Riwayat migration</h1>
+    <p class="muted">Urut dari versi terbaru. Migration yang gagal tetap tercatat dengan versinya sendiri.</p>
+  </div>
+  <a class="btn" href="/databases/{{$id}}/migrations">Migration</a>
 </header>
-<section class="card">
-  {{if .Data.Migrations}}
-  <div class="table-wrap"><table><thead><tr><th>Versi</th><th>Status</th><th>Executor</th><th>Waktu</th><th>SQL</th><th>Error</th></tr></thead><tbody>
-  {{range .Data.Migrations}}<tr><td>{{.Version}}</td><td><span class="badge badge-{{.Status}}">{{.Status}}</span></td><td>{{.Executor}}</td><td>{{formatTime .ExecutedAt}}</td><td><details><summary>Lihat SQL</summary><pre class="sql-preview">{{.SQL}}</pre></details></td><td>{{.Error}}</td></tr>{{end}}
-  </tbody></table></div>
-  {{else}}<p>Belum ada migration untuk database ini.</p>{{end}}
-</section>
+{{if .Data.Migrations}}
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th class="num">Versi</th><th>Nama</th><th>Status</th><th>Pelaksana</th><th>Waktu</th><th><span class="sr-only">Aksi</span></th></tr></thead>
+    <tbody>
+    {{range .Data.Migrations}}
+      <tr>
+        <td class="num">v{{.Version}}</td>
+        <td>{{if .Name}}{{.Name}}{{else}}<span class="muted">—</span>{{end}}</td>
+        <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+        <td>{{.Executor}}</td>
+        <td class="muted">{{formatTime .ExecutedAt}}</td>
+        <td class="row-actions"><a class="btn btn-sm" href="/databases/{{$id}}/migrations/history/{{.Version}}">Detail</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="empty">Belum ada migration yang dijalankan pada database ini.</div>
+{{end}}
 {{end}}

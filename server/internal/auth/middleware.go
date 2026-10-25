@@ -20,9 +20,6 @@ func NewMiddleware(userRepo UserRepository, sessionMgr *session.Manager) *Middle
 	}
 }
 
-// RequireAuth memastikan request memiliki sesi valid di backend.
-// Jika valid: injeksi objek User ke context via WithUser.
-// Jika tidak valid: tolak request (401 JSON untuk request API, atau redirect /login untuk browser).
 func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, err := m.sessionMgr.ExtractToken(r)
@@ -50,8 +47,6 @@ func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 	})
 }
 
-// Authenticate mencoba membaca sesi dari cookie jika ada.
-// Jika sesi valid, inject User ke context. Jika tidak ada / invalid, request tetap diteruskan tanpa user di context.
 func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, err := m.sessionMgr.ExtractToken(r)
@@ -90,13 +85,11 @@ func isAPIRequest(r *http.Request) bool {
 	return strings.Contains(accept, "application/json")
 }
 
-// RequireAuth helper fungsional untuk memudahkan penggunaan sebagai middleware standar
 func RequireAuth(userRepo UserRepository, sessionMgr *session.Manager) func(http.Handler) http.Handler {
 	m := NewMiddleware(userRepo, sessionMgr)
 	return m.RequireAuth
 }
 
-// Authenticate helper fungsional untuk memudahkan penggunaan sebagai middleware standar
 func Authenticate(userRepo UserRepository, sessionMgr *session.Manager) func(http.Handler) http.Handler {
 	m := NewMiddleware(userRepo, sessionMgr)
 	return m.Authenticate

@@ -6,8 +6,6 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 )
 
-// FakeAuthMiddleware menginjeksi dummy user (Platform Admin atau User Biasa) ke request context.
-// Berguna agar Orang B dan Orang C bisa mengetes fiturnya sebelum modul auth Orang A selesai.
 func FakeAuthMiddleware(admin bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

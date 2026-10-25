@@ -52,18 +52,18 @@ func TestIsExplainable(t *testing.T) {
 func TestBuildSummaryFromJSON(t *testing.T) {
 	execTime := 0.125
 	planTime := 0.450
-	actualRows := int64(1)
+	actualRows := float64(1)
 
 	raw := rawWrapper{
 		PlanningTime:  &planTime,
 		ExecutionTime: &execTime,
 		Plan: rawNode{
-			NodeType:    "Seq Scan",
+			NodeType:     "Seq Scan",
 			RelationName: "users",
-			StartupCost: 0.00,
-			TotalCost:   1.05,
-			PlanRows:    1,
-			ActualRows:  &actualRows,
+			StartupCost:  0.00,
+			TotalCost:    1.05,
+			PlanRows:     1,
+			ActualRows:   &actualRows,
 		},
 	}
 
@@ -92,7 +92,6 @@ func TestRunExplainLiveRollback(t *testing.T) {
 
 	ctx := context.Background()
 
-	// 1. Uji EXPLAIN ANALYZE pada SELECT
 	querySelect := "SELECT id, username FROM users WHERE username = 'admin'"
 	results, err := runExplain(ctx, db, querySelect, true)
 	if err != nil {
@@ -112,7 +111,6 @@ func TestRunExplainLiveRollback(t *testing.T) {
 		t.Errorf("Ekspektasi ActualTimeMS terisi pada ANALYZE mode")
 	}
 
-	// 2. Uji SAFE ROLLBACK: Pastikan data INSERT via EXPLAIN ANALYZE tidak tersimpan di database
 	testUniqueUser := "rollback_test_user_explain"
 	insertQuery := "INSERT INTO users (username, password_hash) VALUES ('" + testUniqueUser + "', 'dummy_hash')"
 	_, err = runExplain(ctx, db, insertQuery, true)

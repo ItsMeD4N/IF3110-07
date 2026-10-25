@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -125,4 +126,87 @@ func TestSession_ForceRotateKeepsOldHash(t *testing.T) {
 	if sess.RotatedFromTokenHash == nil || *sess.RotatedFromTokenHash != oldHash || sess.TokenHash == oldHash {
 		t.Fatalf("RotatedFromTokenHash = %v, want hash lama %s", sess.RotatedFromTokenHash, oldHash)
 	}
+}
+
+func TestSession_ConcurrentRotationProducesOneToken(t *testing.T) {
+	ctx := context.Background()
+	for round := 0; round < 10; round++ {
+		mgr, userID := newRotationUser(t)
+		start := time.Now()
+		mgr.SetNowFunc(func() time.Time { return start })
+		sess, token, err := mgr.CreateSession(ctx, userID, "127.0.0.1", "race")
+		if err != nil {
+			t.Fatal(err)
+		}
+		mgr.SetNowFunc(func() time.Time { return start.Add(RotationInterval + time.Second) })
+
+		const n = 8
+		issued := make([]string, n)
+		errs := make([]error, n)
+		var wg sync.WaitGroup
+		for i := 0; i < n; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				rec := httptest.NewRecorder()
+				_, errs[i] = mgr.ValidateSession(ctx, token, rec)
+				issued[i] = cookieValue(rec)
+			}(i)
+		}
+		wg.Wait()
+
+		cur, err := NewSessionRepository(testutil.OpenDB(t)).GetSessionByTokenHash(ctx, HashToken(token))
+		if err != nil {
+			t.Fatal(err)
+		}
+		newTokens := 0
+		for i, tok := range issued {
+			if errs[i] != nil {
+				t.Fatalf("request %d ditolak: %v", i, errs[i])
+			}
+			if tok == "" {
+				continue
+			}
+			newTokens++
+			if HashToken(tok) != cur.TokenHash {
+				t.Fatalf("round %d: request %d menerima token yang tidak dikenal DB", round, i)
+			}
+		}
+		if newTokens != 1 || cur.ID != sess.ID {
+			t.Fatalf("round %d: %d token baru diterbitkan, want 1", round, newTokens)
+		}
+	}
+}
+
+func TestSession_CookieExpiresWithAbsoluteExpiration(t *testing.T) {
+	ctx := context.Background()
+	mgr, userID := newRotationUser(t)
+	start := time.Now()
+	mgr.SetNowFunc(func() time.Time { return start })
+	sess, token, err := mgr.CreateSession(ctx, userID, "127.0.0.1", "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := start.Add(AbsoluteExpiration - time.Hour)
+	mgr.SetNowFunc(func() time.Time { return later })
+	if err := mgr.repo.UpdateIdleExpiry(ctx, sess.ID, later.Add(IdleTimeout)); err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.RequireRotation(ctx, []string{userID}); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	if _, err := mgr.ValidateSession(ctx, token, rec); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name != SessionCookieName {
+			continue
+		}
+		if c.MaxAge > int(time.Hour.Seconds()) || c.Expires.Sub(sess.AbsoluteExpiresAt).Abs() > time.Second {
+			t.Fatalf("cookie hasil rotasi: MaxAge=%d Expires=%v, absolute=%v", c.MaxAge, c.Expires, sess.AbsoluteExpiresAt)
+		}
+		return
+	}
+	t.Fatal("rotasi tidak mengirim cookie baru")
 }

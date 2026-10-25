@@ -1,11 +1,5 @@
--- ============================================================================
--- Migrasi 001 - Orang A: Modul Identity & Session
--- Tabel: users, sessions
--- ============================================================================
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. TABEL USERS
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -18,19 +12,16 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
--- 2. TABEL SESSIONS
--- Token hash menyimpan digest SHA-256 dari opaque token yang diberikan ke client.
 CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     idle_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     absolute_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    
-    -- Kolom untuk rotasi token berkala & grace period
+
     rotated_from_token_hash VARCHAR(64) NULL,
     grace_period_until TIMESTAMP WITH TIME ZONE NULL,
-    
+
     is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
     ip_address VARCHAR(45) NULL,
     user_agent TEXT NULL,
@@ -43,9 +34,6 @@ CREATE INDEX IF NOT EXISTS idx_sessions_rotated_from ON sessions(rotated_from_to
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(idle_expires_at, absolute_expires_at);
 
--- 3. SEED AKUN PLATFORM ADMIN PERTAMA
--- Username: admin
--- Password default: Admin#Password123 (bcrypt cost 12)
 INSERT INTO users (id, username, password_hash, is_platform_admin, is_active)
 VALUES (
     'a0000000-0000-0000-0000-000000000001',

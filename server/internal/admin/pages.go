@@ -3,7 +3,6 @@ package admin
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -26,6 +25,14 @@ func (m *Module) registerPages(mux *http.ServeMux) {
 	db := func(perm authz.Permission, h http.HandlerFunc) http.Handler {
 		return m.requireAuth(pmw.RequireDB(perm, h))
 	}
+
+	mux.Handle("GET /admin/users", admin(authz.PermManageUsers, m.pageUsers))
+	mux.Handle("POST /admin/users", admin(authz.PermManageUsers, m.pageCreateUser))
+	mux.Handle("GET /admin/users/{userID}", admin(authz.PermManageUsers, m.pageUserDetail))
+	mux.Handle("POST /admin/users/{userID}", admin(authz.PermManageUsers, m.pageUpdateUser))
+	mux.Handle("POST /admin/users/{userID}/password", admin(authz.PermManageUsers, m.pageResetPassword))
+	mux.Handle("POST /admin/users/{userID}/revoke-sessions", admin(authz.PermManageUsers, m.pageRevokeSessions))
+	mux.Handle("POST /admin/users/{userID}/delete", admin(authz.PermManageUsers, m.pageDeleteUser))
 
 	mux.Handle("GET /admin/groups", admin(authz.PermManageGroups, m.pageGroups))
 	mux.Handle("POST /admin/groups", admin(authz.PermManageGroups, m.pageCreateGroup))
@@ -51,16 +58,7 @@ func (m *Module) registerPages(mux *http.ServeMux) {
 }
 
 func (m *Module) pageDenied(w http.ResponseWriter, r *http.Request, err error) {
-	switch authz.StatusFor(err) {
-	case http.StatusUnauthorized:
-		http.Redirect(w, r, "/login", http.StatusFound)
-	case http.StatusForbidden:
-		m.Views.Error(w, r, http.StatusForbidden, "Akses ditolak", httpx.MsgForbidden)
-	case http.StatusNotFound:
-		m.notFound(w, r)
-	default:
-		m.internal(w, r, err)
-	}
+	m.Views.Denied(w, r, err)
 }
 
 func (m *Module) notFound(w http.ResponseWriter, r *http.Request) {
@@ -68,8 +66,7 @@ func (m *Module) notFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Module) internal(w http.ResponseWriter, r *http.Request, err error) {
-	log.Printf("[Admin] internal error: method=%s path=%s err=%v", r.Method, r.URL.Path, err)
-	m.Views.Error(w, r, http.StatusInternalServerError, "Terjadi kesalahan", httpx.MsgInternal)
+	m.Views.Internal(w, r, err)
 }
 
 func (m *Module) pageStoreErr(w http.ResponseWriter, r *http.Request, err error, back, conflictMsg string) {
@@ -548,16 +545,7 @@ func (m *Module) pageDatabases(w http.ResponseWriter, r *http.Request) {
 func (m *Module) pageOpenDatabase(w http.ResponseWriter, r *http.Request) {
 	access, _ := authz.DBAccessFrom(r.Context())
 	if _, err := m.Conns.Pool(r.Context(), access.DatabaseID); err != nil {
-		if errors.Is(err, connmgr.ErrNotFound) {
-			m.notFound(w, r)
-			return
-		}
-		if !errors.Is(err, connmgr.ErrConnectionFailed) {
-			m.internal(w, r, err)
-			return
-		}
-		log.Printf("[Admin] koneksi database target gagal: path=%s err=%v", r.URL.Path, err)
-		m.Views.Error(w, r, http.StatusServiceUnavailable, "Database tidak dapat dijangkau", MsgConnectionFailed)
+		m.Views.ConnError(w, r, err)
 		return
 	}
 	web.Redirect(w, r, fmt.Sprintf("/databases/%d", access.DatabaseID))

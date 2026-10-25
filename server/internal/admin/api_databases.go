@@ -53,7 +53,7 @@ func (m *Module) apiGetMyDatabase(w http.ResponseWriter, r *http.Request) {
 func (m *Module) apiDatabaseStatus(w http.ResponseWriter, r *http.Request) {
 	access, _ := authz.DBAccessFrom(r.Context())
 	if _, err := m.Conns.Pool(r.Context(), access.DatabaseID); err != nil {
-		WriteConnError(w, r, err)
+		httpx.ConnError(w, r, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})

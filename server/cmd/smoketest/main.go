@@ -24,11 +24,10 @@ func main() {
 		Jar:     jar,
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return nil // Ikuti redirect otomatis
+			return nil
 		},
 	}
 
-	// 1. Healthcheck
 	fmt.Print("\n[1/6] Menguji Server Health (/api/health)... ")
 	resp, err := client.Get(baseURL + "/api/health")
 	if err != nil {
@@ -41,7 +40,6 @@ func main() {
 	}
 	fmt.Printf("OK (HTTP 200)\n      Output: %s\n", strings.TrimSpace(string(body)))
 
-	// 2. Ambil halaman login untuk memperoleh CSRF token
 	fmt.Print("\n[2/6] Mengambil CSRF token dari GET /login... ")
 	resp, err = client.Get(baseURL + "/login")
 	if err != nil {
@@ -62,7 +60,6 @@ func main() {
 	}
 	fmt.Printf("OK (Token: %s...)\n", csrfToken[:12])
 
-	// 3. Login sebagai Platform Admin
 	fmt.Print("\n[3/6] Menguji Autentikasi Admin (POST /login)... ")
 	form := url.Values{
 		"username":   {"admin"},
@@ -91,7 +88,6 @@ func main() {
 	}
 	fmt.Println("OK (Login Berhasil, Sesi Aktif)")
 
-	// 4. Pengujian Orang A: Manajemen Pengguna (/api/admin/users)
 	fmt.Print("\n[4/6] Menguji Orang A - Manajemen Pengguna (/api/admin/users)... ")
 	resp, err = client.Get(baseURL + "/api/admin/users")
 	if err != nil {
@@ -122,9 +118,8 @@ func main() {
 		fmt.Printf("      - [%d] %-12s | %-15s | %s\n", i+1, usr.Username, role, status)
 	}
 
-	// 5. Pengujian Orang B: Koneksi Database Target
 	fmt.Print("\n[5/6] Menguji Orang B - Koneksi Database Target (/api/admin/connections)... ")
-	// Buat atau periksa koneksi DB target
+
 	connPayload := map[string]any{
 		"name":          "Target Local DB",
 		"description":   "Koneksi uji coba untuk E2E test",
@@ -154,7 +149,6 @@ func main() {
 		dbID = res.Connection.ID
 	}
 
-	// Jika sudah ada atau conflict, ambil dari list
 	if dbID == 0 {
 		resp, _ = client.Get(baseURL + "/api/admin/connections")
 		body, _ = io.ReadAll(resp.Body)
@@ -175,7 +169,6 @@ func main() {
 		fatal("Gagal memperoleh ID database target!")
 	}
 
-	// Test ping koneksi via API
 	req, _ = http.NewRequest("POST", fmt.Sprintf("%s/api/admin/connections/%d/test", baseURL, dbID), nil)
 	req.Header.Set("X-CSRF-Token", csrfToken)
 	resp, err = client.Do(req)
@@ -192,7 +185,6 @@ func main() {
 	_ = json.Unmarshal(body, &testRes)
 	fmt.Printf("OK (Database ID: %d, Server: PostgreSQL %s, Latency: %d ms)\n", dbID, testRes.ServerVersion, testRes.LatencyMS)
 
-	// Pastikan admin tergabung dalam grup dengan grant pada database ini
 	resp, _ = client.Get(baseURL + "/api/authz/me")
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -245,10 +237,8 @@ func main() {
 	resp, _ = client.Do(req)
 	resp.Body.Close()
 
-	// 6. Pengujian Orang C: Migration Runner & Database Viewer
 	fmt.Print("\n[6/6] Menguji Orang C - Migration Runner & Data Viewer...\n")
 
-	// 6A. Eksekusi Migration SQL
 	fmt.Print("      [A] Menjalankan SQL Migration (CREATE TABLE + INSERT)... ")
 	testSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS e2e_smoke_test (
@@ -287,7 +277,6 @@ func main() {
 		fmt.Printf("OK (Versi %d, Status: %s, Executor: %s)\n", migRes.Migration.Version, migRes.Migration.Status, migRes.Migration.Executor)
 	}
 
-	// 6B. Introspeksi Skema Database
 	fmt.Print("      [B] Introspeksi Skema Database (/api/databases/:id/schema)... ")
 	resp, err = client.Get(fmt.Sprintf("%s/api/databases/%d/schema?schema=public", baseURL, dbID))
 	if err != nil {
@@ -319,7 +308,6 @@ func main() {
 		fmt.Printf("Tabel tidak ditemukan di skema public! Total tabel: %d\n", len(schemaRes.Tables))
 	}
 
-	// 6C. Pembacaan Data Tabel
 	fmt.Print("      [C] Membaca Data Tabel (/api/databases/:id/tables/e2e_smoke_test/data)... ")
 	resp, err = client.Get(fmt.Sprintf("%s/api/databases/%d/tables/e2e_smoke_test/data", baseURL, dbID))
 	if err != nil {
@@ -355,7 +343,6 @@ func main() {
 func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string) {
 	noCookieClient := &http.Client{Timeout: 5 * time.Second}
 
-	// 1. Error Case: Login dengan password salah
 	fmt.Print("\n[E1] Login dengan password salah... ")
 	wrongForm := url.Values{
 		"username":   {"admin"},
@@ -367,7 +354,7 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	req.Header.Set("X-CSRF-Token", adminCSRF)
 	resp, _ := noCookieClient.Do(req)
 	resp.Body.Close()
-	// Verifikasi tidak ada cookie sesi yang terbit
+
 	issuedSession := false
 	for _, c := range resp.Cookies() {
 		if c.Name == "app_session_id" && c.Value != "" {
@@ -379,7 +366,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	}
 	fmt.Println("PASSED (Login ditolak, tidak ada sesi terpasang)")
 
-	// 2. Error Case: Proteksi CSRF (Request POST tanpa token anti-CSRF)
 	fmt.Print("[E2] Proteksi CSRF: Request POST tanpa CSRF token... ")
 	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(`{"username":"csrf_victim","password":"Password#123"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -390,7 +376,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	}
 	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
 
-	// 3. Error Case: Proteksi CSRF (Request POST dengan token palsu/acak)
 	fmt.Print("[E3] Proteksi CSRF: Request POST dengan token palsu/manipulasi... ")
 	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(`{"username":"csrf_victim","password":"Password#123"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -403,7 +388,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	}
 	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
 
-	// 4. Edge Case: Akses endpoint admin oleh user biasa (RBAC check)
 	fmt.Print("[E4] Hak Akses RBAC: User biasa mengakses endpoint Platform Admin... ")
 	aliceJar, _ := cookiejar.New(nil)
 	aliceClient := &http.Client{Jar: aliceJar, Timeout: 5 * time.Second}
@@ -420,7 +404,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	resp, _ = aliceClient.Do(req)
 	resp.Body.Close()
 
-	// Alice mencoba akses endpoint admin
 	req, _ = http.NewRequest("GET", baseURL+"/api/admin/users", nil)
 	resp, _ = aliceClient.Do(req)
 	resp.Body.Close()
@@ -429,7 +412,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	}
 	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
 
-	// 5. Edge Case: Self-deactivation prevention (Admin dilarang menonaktifkan dirinya sendiri)
 	fmt.Print("[E5] Integritas Akun: Admin mencoba menonaktifkan akunnya sendiri... ")
 	adminClient := &http.Client{
 		Timeout: 5 * time.Second,
@@ -448,7 +430,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	}
 	fmt.Printf("PASSED (Ditolak HTTP 400: %s)\n", strings.TrimSpace(string(body)))
 
-	// 6. Error Case: Validasi Input User (Password < 8 karakter)
 	fmt.Print("[E6] Validasi Input: Pembuatan user dengan password lemah (< 8 karakter)... ")
 	invalidUserPayload := `{"username":"shortpwd_user","password":"123"}`
 	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(invalidUserPayload))
@@ -463,7 +444,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	}
 	fmt.Println("PASSED (Ditolak HTTP 400 Bad Request)")
 
-	// 7. Edge Case: Session Tampering (Cookie dimodifikasi/korup)
 	fmt.Print("[E7] Session Tampering: Mengakses endpoint dengan cookie sesi palsu... ")
 	tamperedClient := &http.Client{Timeout: 5 * time.Second}
 	req, _ = http.NewRequest("GET", baseURL+"/api/admin/users", nil)
@@ -475,7 +455,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	}
 	fmt.Println("PASSED (Ditolak HTTP 401 Unauthorized)")
 
-	// 8. Error Case: Migration SQL Error & Atomic Rollback
 	fmt.Print("[E8] Atomic Rollback: Migrasi dengan SQL sintaks salah... ")
 	errSQL := `
 		CREATE TABLE IF NOT EXISTS test_atomic_rollback (id serial primary key);
@@ -497,7 +476,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 		fatal("Migrasi sintaks salah tidak ditolak! Status: %d", resp.StatusCode)
 	}
 
-	// Verifikasi bahwa tabel 'test_atomic_rollback' TIDAK ADA di skema (terbukti di-rollback)
 	req, _ = http.NewRequest("GET", fmt.Sprintf("%s/api/databases/%d/schema?schema=public", baseURL, dbID), nil)
 	req.AddCookie(&http.Cookie{Name: "app_session_id", Value: getAdminToken(baseURL, adminCSRF)})
 	resp, _ = adminClient.Do(req)
@@ -508,7 +486,6 @@ func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string
 	}
 	fmt.Println("PASSED (Transaksi di-rollback 100%, tabel tidak tersimpan)")
 
-	// 9. Edge Case: EXPLAIN pada DDL (Informasi bahwa DDL tidak memiliki execution plan optimizer)
 	fmt.Print("[E9] Query Execution Plan: EXPLAIN pada DDL statement (CREATE TABLE)... ")
 	expDDL := `CREATE TABLE test_sample (id int);`
 	req, _ = http.NewRequest("POST", fmt.Sprintf("%s/api/databases/%d/migrations/explain", baseURL, dbID), strings.NewReader(fmt.Sprintf(`{"sql":"%s","analyze":false}`, expDDL)))

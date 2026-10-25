@@ -21,7 +21,6 @@ type contextKey string
 
 const csrfContextKey contextKey = "csrf_token"
 
-// Token mengambil token anti-CSRF aktif dari context request
 func Token(ctx context.Context) string {
 	if t, ok := ctx.Value(csrfContextKey).(string); ok {
 		return t
@@ -29,17 +28,14 @@ func Token(ctx context.Context) string {
 	return ""
 }
 
-// WithToken memasukkan token anti-CSRF ke context request
 func WithToken(ctx context.Context, token string) context.Context {
 	return context.WithValue(ctx, csrfContextKey, token)
 }
 
-// TemplateField menghasilkan elemen HTML hidden input untuk disematkan pada Go HTML template
 func TemplateField(token string) template.HTML {
 	return template.HTML(fmt.Sprintf(`<input type="hidden" name="%s" value="%s">`, CSRFFormField, token))
 }
 
-// GenerateToken membuat token anti-CSRF acak 32 bytes (256-bit entropy)
 func GenerateToken() (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
@@ -48,13 +44,10 @@ func GenerateToken() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-// Middleware menyediakan proteksi CSRF menggunakan Synchronizer / Double Submit Cookie pattern:
-// - Safe methods (GET, HEAD, OPTIONS, TRACE): memastikan cookie csrf_token terpasang dan menginjeksi token ke context.
-// - State-changing methods (POST, PUT, DELETE, PATCH): memverifikasi token dari header X-CSRF-Token atau form csrf_token.
 func Middleware(isProd bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// 1. Tangani safe methods
+
 			switch r.Method {
 			case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
 				token := ""
@@ -67,7 +60,7 @@ func Middleware(isProd bool) func(http.Handler) http.Handler {
 							Name:     CSRFCookieName,
 							Value:    token,
 							Path:     "/",
-							HttpOnly: false, // Wajib false agar JavaScript di client dapat membaca token untuk header X-CSRF-Token
+							HttpOnly: false,
 							Secure:   isProd,
 							SameSite: http.SameSiteLaxMode,
 						})
@@ -83,7 +76,6 @@ func Middleware(isProd bool) func(http.Handler) http.Handler {
 				return
 			}
 
-			// 2. Tangani metode mutasi state (POST, PUT, DELETE, PATCH)
 			cookie, err := r.Cookie(CSRFCookieName)
 			if err != nil || cookie.Value == "" {
 				w.Header().Set("Content-Type", "application/json")
@@ -94,7 +86,6 @@ func Middleware(isProd bool) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Ambil token dari Header atau Form body
 			clientToken := r.Header.Get(CSRFHeaderName)
 			if clientToken == "" {
 				clientToken = r.FormValue(CSRFFormField)
@@ -109,14 +100,12 @@ func Middleware(isProd bool) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Lolos validasi: inject token ke context dan lanjutkan
 			r = r.WithContext(WithToken(r.Context(), cookie.Value))
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-// HandleGetToken menyediakan endpoint GET /api/csrf-token untuk client/SPA mengambil token CSRF
 func HandleGetToken(w http.ResponseWriter, r *http.Request) {
 	token := Token(r.Context())
 	if token == "" {
@@ -130,7 +119,6 @@ func HandleGetToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// RegisterRoutes mendaftarkan endpoint CSRF helper ke mux
 func RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/csrf-token", HandleGetToken)
 }

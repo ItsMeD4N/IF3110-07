@@ -19,7 +19,19 @@ var (
 	ErrNotFound = errors.New("connmgr: connection not found")
 
 	ErrConnectionFailed = errors.New("connmgr: connection failed")
+
+	ErrPlatformTarget = errors.New("connmgr: koneksi menunjuk ke database platform")
 )
+
+const msgPlatformTarget = "koneksi ini menunjuk ke database platform dan tidak boleh dikelola"
+
+func Fingerprint(ctx context.Context, db *sql.DB) (string, error) {
+	var fp string
+	err := db.QueryRowContext(ctx, `
+		SELECT d.oid::text || ':' || current_database() || ':' || extract(epoch FROM pg_postmaster_start_time())::text
+		FROM pg_database d WHERE d.datname = current_database()`).Scan(&fp)
+	return fp, err
+}
 
 type ConnError struct {
 	DatabaseID int64
@@ -92,12 +104,15 @@ type Options struct {
 	MaxOpenConns int
 
 	HealthTTL time.Duration
+
+	PlatformFingerprint string
 }
 
 type entry struct {
 	db        *sql.DB
 	version   time.Time
 	checkedAt time.Time
+	verified  bool
 }
 
 type Manager struct {
@@ -145,8 +160,37 @@ func (m *Manager) Pool(ctx context.Context, id int64) (*sql.DB, error) {
 		m.setHealthy(id, db, false)
 		return nil, &ConnError{DatabaseID: id, Detail: sanitize(err, cfg)}
 	}
+	if !m.isVerified(id, db) {
+		if err := m.checkNotPlatform(pctx, db); err != nil {
+			if errors.Is(err, ErrPlatformTarget) {
+				return nil, err
+			}
+			return nil, &ConnError{DatabaseID: id, Detail: sanitize(err, cfg)}
+		}
+	}
 	m.setHealthy(id, db, true)
 	return db, nil
+}
+
+func (m *Manager) checkNotPlatform(ctx context.Context, db *sql.DB) error {
+	if m.opts.PlatformFingerprint == "" {
+		return nil
+	}
+	fp, err := Fingerprint(ctx, db)
+	if err != nil {
+		return err
+	}
+	if fp == m.opts.PlatformFingerprint {
+		return ErrPlatformTarget
+	}
+	return nil
+}
+
+func (m *Manager) isVerified(id int64, db *sql.DB) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.pools[id]
+	return ok && e.db == db && e.verified
 }
 
 func (m *Manager) recentlyHealthy(id int64, db *sql.DB) bool {
@@ -165,6 +209,7 @@ func (m *Manager) setHealthy(id int64, db *sql.DB, ok bool) {
 	if e, exists := m.pools[id]; exists && e.db == db {
 		if ok {
 			e.checkedAt = time.Now()
+			e.verified = true
 		} else {
 			e.checkedAt = time.Time{}
 		}
@@ -240,6 +285,13 @@ func (m *Manager) Test(ctx context.Context, cfg Config) TestResult {
 	var version string
 	if err := db.QueryRowContext(tctx, `SHOW server_version`).Scan(&version); err != nil {
 		return TestResult{LatencyMS: time.Since(start).Milliseconds(), Error: sanitize(err, cfg)}
+	}
+	if err := m.checkNotPlatform(tctx, db); err != nil {
+		msg := msgPlatformTarget
+		if !errors.Is(err, ErrPlatformTarget) {
+			msg = sanitize(err, cfg)
+		}
+		return TestResult{LatencyMS: time.Since(start).Milliseconds(), Error: msg}
 	}
 	return TestResult{OK: true, LatencyMS: time.Since(start).Milliseconds(), ServerVersion: version}
 }

@@ -19,7 +19,6 @@ func TestCSRF_SafeMethods(t *testing.T) {
 		_, _ = w.Write([]byte("safe method ok"))
 	}))
 
-	// 1. GET request tanpa cookie CSRF awal -> harus meloloskan dan memasang cookie
 	req := httptest.NewRequest("GET", "/test-safe", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -47,7 +46,6 @@ func TestCSRF_SafeMethods(t *testing.T) {
 		t.Fatalf("Token dalam context (%s) tidak cocok dengan cookie (%s)", capturedToken, csrfCookie.Value)
 	}
 
-	// 2. OPTIONS request (CORS Preflight)
 	reqOptions := httptest.NewRequest("OPTIONS", "/test-safe", nil)
 	recOptions := httptest.NewRecorder()
 	handler.ServeHTTP(recOptions, reqOptions)
@@ -66,7 +64,7 @@ func TestCSRF_MutationMethods_Rejections(t *testing.T) {
 	methods := []string{"POST", "PUT", "DELETE", "PATCH"}
 
 	for _, method := range methods {
-		// Skenario A: Tanpa cookie sama sekali -> 403
+
 		reqNoCookie := httptest.NewRequest(method, "/api/mutation", nil)
 		recNoCookie := httptest.NewRecorder()
 		handler.ServeHTTP(recNoCookie, reqNoCookie)
@@ -75,7 +73,6 @@ func TestCSRF_MutationMethods_Rejections(t *testing.T) {
 			t.Errorf("[%s] Harusnya 403 Forbidden tanpa cookie, got %d", method, recNoCookie.Code)
 		}
 
-		// Skenario B: Cookie ada, tapi header/form token tidak dikirim -> 403
 		reqMissingToken := httptest.NewRequest(method, "/api/mutation", nil)
 		reqMissingToken.AddCookie(&http.Cookie{Name: CSRFCookieName, Value: "valid-cookie-token-1234567890"})
 		recMissingToken := httptest.NewRecorder()
@@ -85,7 +82,6 @@ func TestCSRF_MutationMethods_Rejections(t *testing.T) {
 			t.Errorf("[%s] Harusnya 403 Forbidden tanpa client token, got %d", method, recMissingToken.Code)
 		}
 
-		// Skenario C: Token header salah / tidak cocok dengan cookie -> 403
 		reqWrongToken := httptest.NewRequest(method, "/api/mutation", nil)
 		reqWrongToken.AddCookie(&http.Cookie{Name: CSRFCookieName, Value: "valid-cookie-token-1234567890"})
 		reqWrongToken.Header.Set(CSRFHeaderName, "attacker-mismatched-token-999")
@@ -107,7 +103,6 @@ func TestCSRF_MutationMethods_Acceptance(t *testing.T) {
 
 	token, _ := GenerateToken()
 
-	// Skenario 1: POST dengan header X-CSRF-Token
 	reqHeader := httptest.NewRequest("POST", "/api/mutation", nil)
 	reqHeader.AddCookie(&http.Cookie{Name: CSRFCookieName, Value: token})
 	reqHeader.Header.Set(CSRFHeaderName, token)
@@ -118,7 +113,6 @@ func TestCSRF_MutationMethods_Acceptance(t *testing.T) {
 		t.Fatalf("POST dengan header X-CSRF-Token valid harus 200 OK, got %d. Body: %s", recHeader.Code, recHeader.Body.String())
 	}
 
-	// Skenario 2: POST dengan Form Field csrf_token
 	formData := url.Values{}
 	formData.Set(CSRFFormField, token)
 	formData.Set("data", "hello")
@@ -148,7 +142,6 @@ func TestCSRF_Endpoint(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterRoutes(mux)
 
-	// Wrap dengan CSRF middleware
 	handler := Middleware(false)(mux)
 
 	req := httptest.NewRequest("GET", "/api/csrf-token", nil)

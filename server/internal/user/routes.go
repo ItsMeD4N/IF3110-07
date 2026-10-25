@@ -23,12 +23,10 @@ func NewHandler(userRepo auth.UserRepository, sessionMgr *session.Manager) *Hand
 	}
 }
 
-// RequirePlatformAdmin memastikan principal di context adalah Platform Admin
 func RequirePlatformAdmin(next http.Handler) http.Handler {
 	return authz.RequirePlatform(authz.PermManageUsers, next)
 }
 
-// RegisterRoutes mendaftarkan seluruh rute CRUD User Platform Admin
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	authMw := auth.RequireAuth(h.userRepo, h.sessionMgr)
 	adminMw := RequirePlatformAdmin
@@ -37,31 +35,23 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		return authMw(adminMw(handler))
 	}
 
-	// 1. List Users
 	mux.Handle("GET /api/admin/users", protect(h.handleListUsers))
 
-	// 2. Create User
 	mux.Handle("POST /api/admin/users", protect(h.handleCreateUser))
 
-	// 3. Get User Detail
 	mux.Handle("GET /api/admin/users/{id}", protect(h.handleGetUser))
 
-	// 4. Update User
 	mux.Handle("PUT /api/admin/users/{id}", protect(h.handleUpdateUser))
-	mux.Handle("POST /api/admin/users/{id}", protect(h.handleUpdateUser)) // Form POST fallback
+	mux.Handle("POST /api/admin/users/{id}", protect(h.handleUpdateUser))
 
-	// 5. Reset Password
 	mux.Handle("POST /api/admin/users/{id}/reset-password", protect(h.handleResetPassword))
 
-	// 6. Revoke All Sessions
 	mux.Handle("POST /api/admin/users/{id}/revoke-sessions", protect(h.handleRevokeSessions))
 
-	// 7. Delete User
 	mux.Handle("DELETE /api/admin/users/{id}", protect(h.handleDeleteUser))
-	mux.Handle("POST /api/admin/users/{id}/delete", protect(h.handleDeleteUser)) // Form POST fallback
+	mux.Handle("POST /api/admin/users/{id}/delete", protect(h.handleDeleteUser))
 }
 
-// RegisterRoutes helper untuk mendaftarkan rute dengan dependensi repository & session
 func RegisterRoutes(mux *http.ServeMux, userRepo auth.UserRepository, sessionMgr *session.Manager) {
 	h := NewHandler(userRepo, sessionMgr)
 	h.RegisterRoutes(mux)
@@ -129,7 +119,6 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hash password menggunakan bcrypt cost 12
 	passwordHash, err := auth.HashPassword(req.Password)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -229,7 +218,6 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cek apakah user ada
 	existing, err := h.userRepo.GetByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
@@ -248,7 +236,6 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cegah admin menonaktifkan akunnya sendiri
 	currentUser := auth.CurrentUser(r.Context())
 	if currentUser != nil && currentUser.ID == id && !req.IsActive {
 		w.Header().Set("Content-Type", "application/json")
@@ -277,7 +264,6 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Jika akun dinonaktifkan atau privilege admin berubah: cabut semua sesi aktif pengguna tersebut
 	if !req.IsActive || (existing.IsPlatformAdmin != req.IsPlatformAdmin) {
 		_ = h.sessionMgr.RevokeAllForUser(r.Context(), id)
 	}
@@ -326,7 +312,6 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Hash password baru
 	hash, err := auth.HashPassword(req.NewPassword)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -337,7 +322,6 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Simpan password baru ke DB
 	if err := h.userRepo.UpdatePassword(r.Context(), id, hash); err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			w.Header().Set("Content-Type", "application/json")
@@ -355,7 +339,6 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Sesuai spesifikasi: Reset password otomatis mencabut seluruh sesi aktif user tersebut
 	_ = h.sessionMgr.RevokeAllForUser(r.Context(), id)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -368,7 +351,6 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleRevokeSessions(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	// Pastikan user ada
 	_, err := h.userRepo.GetByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
@@ -387,7 +369,6 @@ func (h *Handler) handleRevokeSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cabut seluruh sesi aktif user
 	if err := h.sessionMgr.RevokeAllForUser(r.Context(), id); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -407,7 +388,6 @@ func (h *Handler) handleRevokeSessions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	// Cegah admin menghapus dirinya sendiri
 	currentUser := auth.CurrentUser(r.Context())
 	if currentUser != nil && currentUser.ID == id {
 		w.Header().Set("Content-Type", "application/json")
@@ -418,10 +398,8 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Cabut semua sesi aktif
 	_ = h.sessionMgr.RevokeAllForUser(r.Context(), id)
 
-	// 2. Hapus dari DB
 	if err := h.userRepo.Delete(r.Context(), id); err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			w.Header().Set("Content-Type", "application/json")

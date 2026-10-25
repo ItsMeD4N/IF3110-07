@@ -41,9 +41,8 @@ func TestSession_CreateAndCookie(t *testing.T) {
 		t.Fatalf("Sesi ID atau token tidak boleh kosong")
 	}
 
-	// Test SetCookie
 	rec := httptest.NewRecorder()
-	mgr.SetCookie(rec, token)
+	mgr.SetCookie(rec, token, sess.AbsoluteExpiresAt)
 
 	cookies := rec.Result().Cookies()
 	var sessionCookie *http.Cookie
@@ -70,7 +69,6 @@ func TestSession_CreateAndCookie(t *testing.T) {
 		t.Errorf("Cookie value tidak cocok dengan plain token")
 	}
 
-	// Test ExtractToken
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(sessionCookie)
 
@@ -82,7 +80,6 @@ func TestSession_CreateAndCookie(t *testing.T) {
 		t.Fatalf("Expected token %s, got %s", token, extracted)
 	}
 
-	// Test ClearCookie
 	recClear := httptest.NewRecorder()
 	mgr.ClearCookie(recClear)
 	clearCookies := recClear.Result().Cookies()
@@ -115,22 +112,18 @@ func TestSession_IdleTimeout(t *testing.T) {
 	}
 	defer mgr.Revoke(ctx, token, nil)
 
-	// Verifikasi saat ini masih valid
 	_, err = mgr.ValidateSession(ctx, token, nil)
 	if err != nil {
 		t.Fatalf("Sesi seharusnya valid pada waktu awal: %v", err)
 	}
 
-	// Majukan waktu 31 menit (melewati IdleTimeout 30 menit)
 	simulatedTime = simulatedTime.Add(31 * time.Minute)
 
-	// Validasi sesi harus ditolak karena idle timeout
 	_, err = mgr.ValidateSession(ctx, token, nil)
 	if err != ErrIdleTimeout {
 		t.Fatalf("Expected ErrIdleTimeout, got %v", err)
 	}
 
-	// Pastikan sesi otomatis di-revoke di DB
 	fetched, _ := repo.GetSessionByTokenHash(ctx, sess.TokenHash)
 	if !fetched.IsRevoked {
 		t.Fatalf("Sesi harus ditandai is_revoked = true setelah idle timeout")
@@ -154,11 +147,8 @@ func TestSession_AbsoluteExpiration(t *testing.T) {
 	}
 	defer mgr.Revoke(ctx, token, nil)
 
-	// Simulasi user aktif terus menerus selama 12 jam (setiap 20 menit kirim request)
-	// Namun total waktu telah melewati AbsoluteExpiration (12 jam + 1 menit)
 	simulatedTime = simulatedTime.Add(12*time.Hour + 1*time.Minute)
 
-	// Meskipun terus aktif, sesi harus hangus mutlak
 	_, err = mgr.ValidateSession(ctx, token, nil)
 	if err != ErrAbsoluteExpired {
 		t.Fatalf("Expected ErrAbsoluteExpired setelah 12 jam, got %v", err)
@@ -182,7 +172,6 @@ func TestSession_RotationAndGracePeriod(t *testing.T) {
 	}
 	initialAbsoluteExpiry := sessInitial.AbsoluteExpiresAt
 
-	// 1. Majukan waktu 16 menit (melewati RotationInterval 15 menit, tetapi belum idle 30 menit)
 	simulatedTime = simulatedTime.Add(16 * time.Minute)
 
 	rec := httptest.NewRecorder()
@@ -191,14 +180,12 @@ func TestSession_RotationAndGracePeriod(t *testing.T) {
 		t.Fatalf("ValidateSession gagal pada saat rotasi: %v", err)
 	}
 
-	// Pastikan absolute expiration TIDAK berubah sama sekali
 	diff := sessRotated.AbsoluteExpiresAt.Sub(initialAbsoluteExpiry)
 	if diff < -time.Second || diff > time.Second {
 		t.Fatalf("Aturan Rotasi: Absolute expiration tidak boleh berubah! Awal: %v, Setelah rotasi: %v",
 			initialAbsoluteExpiry, sessRotated.AbsoluteExpiresAt)
 	}
 
-	// Ambil token baru dari response cookie
 	cookies := rec.Result().Cookies()
 	var tokenNew string
 	for _, c := range cookies {
@@ -212,7 +199,6 @@ func TestSession_RotationAndGracePeriod(t *testing.T) {
 	}
 	defer mgr.Revoke(ctx, tokenNew, nil)
 
-	// 2. Uji Grace Period: Kirim request menggunakan token lama 30 detik kemudian (≤ 60 detik)
 	simulatedTime = simulatedTime.Add(30 * time.Second)
 	sessGrace, err := mgr.ValidateSession(ctx, tokenOld, nil)
 	if err != nil {
@@ -222,20 +208,17 @@ func TestSession_RotationAndGracePeriod(t *testing.T) {
 		t.Fatalf("Sesi grace period harus merujuk ke record sesi yang sama")
 	}
 
-	// 3. Uji Token Baru: Token baru juga harus valid
 	_, err = mgr.ValidateSession(ctx, tokenNew, nil)
 	if err != nil {
 		t.Fatalf("Token baru harus valid: %v", err)
 	}
 
-	// 4. Uji Grace Period Expired: Majukan waktu lagi 40 detik (total 70 detik sejak rotasi > 60 detik)
 	simulatedTime = simulatedTime.Add(40 * time.Second)
 	_, err = mgr.ValidateSession(ctx, tokenOld, nil)
 	if err != ErrGracePeriodExpired {
 		t.Fatalf("Expected ErrGracePeriodExpired ketika grace period habis, got %v", err)
 	}
 
-	// Token baru tetap valid
 	_, err = mgr.ValidateSession(ctx, tokenNew, nil)
 	if err != nil {
 		t.Fatalf("Token baru harus tetap valid setelah grace period token lama habis: %v", err)
@@ -259,7 +242,6 @@ func TestSession_RevocationAndLogout(t *testing.T) {
 		t.Fatalf("Gagal mencabut sesi: %v", err)
 	}
 
-	// Pastikan cookie dibersihkan
 	cookies := rec.Result().Cookies()
 	var cleared *http.Cookie
 	for _, c := range cookies {
@@ -272,7 +254,6 @@ func TestSession_RevocationAndLogout(t *testing.T) {
 		t.Fatalf("Revoke harus membersihkan cookie dengan MaxAge = -1")
 	}
 
-	// Request berikutnya dengan token yang dicabut harus ditolak
 	_, err = mgr.ValidateSession(ctx, token, nil)
 	if err != ErrSessionRevoked {
 		t.Fatalf("Expected ErrSessionRevoked setelah logout, got %v", err)

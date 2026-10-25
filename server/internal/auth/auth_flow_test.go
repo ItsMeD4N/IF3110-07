@@ -53,7 +53,6 @@ func TestLogin_Success(t *testing.T) {
 		t.Fatalf("Expected 200 OK, got %d. Body: %s", rec.Code, rec.Body.String())
 	}
 
-	// 1. Pastikan cookie app_session_id terpasang dengan HttpOnly
 	cookies := rec.Result().Cookies()
 	var sessionCookie *http.Cookie
 	for _, c := range cookies {
@@ -70,7 +69,6 @@ func TestLogin_Success(t *testing.T) {
 		t.Fatalf("Cookie %s harus memiliki atribut HttpOnly = true", session.SessionCookieName)
 	}
 
-	// 2. Pastikan credential dan token tidak bocor di JSON body
 	bodyStr := rec.Body.String()
 	if strings.Contains(bodyStr, "password_hash") {
 		t.Fatalf("Response body dilarang mengekspos field password_hash: %s", bodyStr)
@@ -83,7 +81,6 @@ func TestLogin_Success(t *testing.T) {
 func TestLogin_InvalidCredentials(t *testing.T) {
 	mux, _, _ := setupTestAuthEnv(t)
 
-	// Skenario 1: Password salah
 	bodyWrongPass, _ := json.Marshal(map[string]string{
 		"username": "admin",
 		"password": "WrongPassword#999",
@@ -102,7 +99,6 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 		}
 	}
 
-	// Skenario 2: Username tidak terdaftar
 	bodyNonExist, _ := json.Marshal(map[string]string{
 		"username": "non_existent_user_999",
 		"password": "AnyPassword123!",
@@ -121,7 +117,6 @@ func TestLogin_InactiveUser(t *testing.T) {
 	mux, userRepo, _ := setupTestAuthEnv(t)
 	ctx := context.Background()
 
-	// Buat user nonaktif
 	testInactiveUser := "inactive_login_test"
 	_ = userRepo.Delete(ctx, testInactiveUser)
 	if existing, err := userRepo.GetByUsername(ctx, testInactiveUser); err == nil && existing != nil {
@@ -135,7 +130,6 @@ func TestLogin_InactiveUser(t *testing.T) {
 	}
 	defer userRepo.Delete(ctx, u.ID)
 
-	// Set is_active = false
 	_ = userRepo.Update(ctx, u.ID, testInactiveUser, false, false)
 
 	body, _ := json.Marshal(map[string]string{
@@ -155,7 +149,6 @@ func TestLogin_InactiveUser(t *testing.T) {
 func TestAuth_Lifecycle_MeAndLogout(t *testing.T) {
 	mux, _, _ := setupTestAuthEnv(t)
 
-	// 1. GET /api/auth/me tanpa login -> 401 Unauthorized
 	reqUnauth := httptest.NewRequest("GET", "/api/auth/me", nil)
 	recUnauth := httptest.NewRecorder()
 	mux.ServeHTTP(recUnauth, reqUnauth)
@@ -163,7 +156,6 @@ func TestAuth_Lifecycle_MeAndLogout(t *testing.T) {
 		t.Fatalf("Akses ke /api/auth/me tanpa login harus 401, got %d", recUnauth.Code)
 	}
 
-	// 2. Login admin
 	loginBody, _ := json.Marshal(map[string]string{
 		"username": "admin",
 		"password": "Admin#Password123",
@@ -185,7 +177,6 @@ func TestAuth_Lifecycle_MeAndLogout(t *testing.T) {
 		t.Fatalf("Login gagal membuat cookie sesi")
 	}
 
-	// 3. GET /api/auth/me dengan cookie sesi -> 200 OK
 	reqMe := httptest.NewRequest("GET", "/api/auth/me", nil)
 	reqMe.AddCookie(sessionCookie)
 	recMe := httptest.NewRecorder()
@@ -203,7 +194,6 @@ func TestAuth_Lifecycle_MeAndLogout(t *testing.T) {
 		t.Fatalf("Data user me tidak sesuai: %+v", userResp)
 	}
 
-	// 4. POST /api/auth/logout dengan cookie sesi -> 200 OK
 	reqLogout := httptest.NewRequest("POST", "/api/auth/logout", nil)
 	reqLogout.AddCookie(sessionCookie)
 	recLogout := httptest.NewRecorder()
@@ -213,7 +203,6 @@ func TestAuth_Lifecycle_MeAndLogout(t *testing.T) {
 		t.Fatalf("Expected 200 OK untuk logout, got %d", recLogout.Code)
 	}
 
-	// Pastikan cookie dibersihkan
 	var clearCookie *http.Cookie
 	for _, c := range recLogout.Result().Cookies() {
 		if c.Name == session.SessionCookieName {
@@ -225,7 +214,6 @@ func TestAuth_Lifecycle_MeAndLogout(t *testing.T) {
 		t.Fatalf("Logout harus mengirim cookie penghapus dengan MaxAge = -1")
 	}
 
-	// 5. GET /api/auth/me kembali menggunakan token yang sudah di-logout -> 401 Unauthorized
 	reqMeAfter := httptest.NewRequest("GET", "/api/auth/me", nil)
 	reqMeAfter.AddCookie(sessionCookie)
 	recMeAfter := httptest.NewRecorder()

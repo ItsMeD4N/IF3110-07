@@ -1,0 +1,57 @@
+{{define "title"}}{{.Data.User.Username}}{{end}}
+{{define "content"}}
+{{$csrf := .CSRFField}}
+{{$u := .Data.User}}
+<p class="crumb"><a href="/admin/users">User</a> / {{$u.Username}}</p>
+<header class="page-header">
+  <div>
+    <h1>{{$u.Username}}</h1>
+    <p class="muted">{{if $u.IsPlatformAdmin}}Platform Admin{{else}}User{{end}} · {{if $u.IsActive}}aktif{{else}}nonaktif{{end}} · dibuat {{formatDate $u.CreatedAt}}</p>
+  </div>
+  {{if not .Data.Self}}
+  <form method="post" action="/admin/users/{{$u.ID}}/delete"
+        onsubmit="return confirm('Hapus user {{$u.Username}}? Tindakan ini tidak bisa dibatalkan.')">
+    {{$csrf}}<button class="btn btn-danger-ghost" type="submit">Hapus user</button>
+  </form>
+  {{end}}
+</header>
+
+{{with .Data.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Data akun</h2>
+    <form method="post" action="/admin/users/{{$u.ID}}" class="form" autocomplete="off">
+      {{$csrf}}
+      <label>Username
+        <input name="username" value="{{$u.Username}}" minlength="3" maxlength="50" required spellcheck="false">
+      </label>
+      <label class="checkbox"><input type="checkbox" name="is_platform_admin"{{if $u.IsPlatformAdmin}} checked{{end}}{{if .Data.Self}} disabled{{end}}> Platform Admin</label>
+      <label class="checkbox"><input type="checkbox" name="is_active"{{if $u.IsActive}} checked{{end}}{{if .Data.Self}} disabled{{end}}> Akun aktif</label>
+      {{if .Data.Self}}
+      <input type="hidden" name="is_platform_admin" value="on">
+      <input type="hidden" name="is_active" value="on">
+      {{end}}
+      <p class="muted small">Menonaktifkan akun atau mengubah status admin akan mengakhiri semua sesi user ini.</p>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Simpan</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Password &amp; sesi</h2>
+    <form method="post" action="/admin/users/{{$u.ID}}/password" class="form" autocomplete="off">
+      {{$csrf}}
+      <label>Password baru
+        <input name="password" type="password" minlength="8" required autocomplete="new-password">
+      </label>
+      <div class="form-actions"><button class="btn" type="submit">Ganti password</button></div>
+    </form>
+    <form method="post" action="/admin/users/{{$u.ID}}/revoke-sessions" class="form"
+          onsubmit="return confirm('Akhiri semua sesi {{$u.Username}}? User harus login ulang.')">
+      {{$csrf}}
+      <p class="muted small">Memaksa user logout dari semua perangkat.</p>
+      <div class="form-actions"><button class="btn btn-danger-ghost" type="submit">Akhiri semua sesi</button></div>
+    </form>
+  </section>
+</div>
+{{end}}

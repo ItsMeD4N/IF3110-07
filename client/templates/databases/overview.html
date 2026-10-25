@@ -12,6 +12,11 @@
     <span class="badge badge-{{$d.Level.String}}">{{$d.Level.Label}}</span>
   </div>
 </header>
+<div class="page-actions">
+  <a class="btn btn-primary" href="/databases/{{$d.ID}}/viewer">Lihat schema &amp; data</a>
+  <a class="btn" href="/databases/{{$d.ID}}/migrations">Migration</a>
+  <a class="btn" href="/databases/{{$d.ID}}/migrations/history">Riwayat migration</a>
+</div>
 {{if $d.Description}}<p>{{$d.Description}}</p>{{end}}
 <section class="card">
   <h2>Aksi Database</h2>

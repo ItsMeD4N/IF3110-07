@@ -26,7 +26,6 @@ func NewHandler(userRepo auth.UserRepository, sessionMgr *session.Manager, viewE
 	}
 }
 
-// RegisterAdminUserRoutes mendaftarkan rute web untuk manajemen pengguna Platform Admin
 func (h *Handler) RegisterAdminUserRoutes(mux *http.ServeMux) {
 	authMw := auth.RequireAuth(h.userRepo, h.sessionMgr)
 	adminMw := user.RequirePlatformAdmin
@@ -42,18 +41,15 @@ func (h *Handler) RegisterAdminUserRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /admin/users/{id}/delete", adminProtect(h.handleWebDeleteUser))
 }
 
-// RegisterRoutes mendaftarkan seluruh rute web / MPA (Go HTML Template)
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	authMw := auth.RequireAuth(h.userRepo, h.sessionMgr)
 	maybeAuth := auth.Authenticate(h.userRepo, h.sessionMgr)
 
-	// 1. Root & Login
 	mux.Handle("GET /{$}", maybeAuth(http.HandlerFunc(h.handleRoot)))
 	mux.Handle("GET /login", maybeAuth(http.HandlerFunc(h.handleLoginPage)))
 	mux.HandleFunc("POST /login", h.handleLoginForm)
 	mux.Handle("POST /logout", authMw(http.HandlerFunc(h.handleLogoutForm)))
 
-	// 2. Admin Users Management (Protected)
 	h.RegisterAdminUserRoutes(mux)
 }
 
@@ -64,7 +60,7 @@ func (h *Handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/admin/users", http.StatusFound)
 			return
 		}
-		// Untuk user biasa, bisa ke dashboard atau halaman DB (Orang C)
+
 		http.Redirect(w, r, "/admin/users", http.StatusFound)
 		return
 	}
@@ -80,6 +76,7 @@ func (h *Handler) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	h.viewEngine.Render(w, r, http.StatusOK, "auth/login.html", view.TemplateData{
 		Title:      "Masuk ke Akun",
 		ActiveMenu: "login",
+		Data:       map[string]any{"Username": "", "Error": ""},
 	})
 }
 
@@ -107,16 +104,14 @@ func (h *Handler) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Buat sesi baru
-	_, opaqueToken, err := h.sessionMgr.CreateSession(r.Context(), u.ID, r.RemoteAddr, r.UserAgent())
+	sess, opaqueToken, err := h.sessionMgr.CreateSession(r.Context(), u.ID, r.RemoteAddr, r.UserAgent())
 	if err != nil {
 		view.SetFlashError(w, "Gagal membuat sesi login. Silakan coba lagi.")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
 
-	// Pasang cookie sesi
-	h.sessionMgr.SetCookie(w, opaqueToken)
+	h.sessionMgr.SetCookie(w, opaqueToken, sess.AbsoluteExpiresAt)
 	view.SetFlashSuccess(w, fmt.Sprintf("Selamat datang kembali, %s!", u.Username))
 
 	http.Redirect(w, r, "/admin/users", http.StatusFound)
@@ -137,6 +132,11 @@ type adminUsersViewData struct {
 	TotalUsers  int
 	TotalAdmins int
 	TotalActive int
+	Error       string
+	Form        struct {
+		Username        string
+		IsPlatformAdmin bool
+	}
 }
 
 func (h *Handler) handleAdminUsersPage(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +174,6 @@ func (h *Handler) handleAdminUsersPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleWebCreateUser(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 
-	// Fallback jika form reset-password atau edit tersubmit ke /admin/users
 	if r.FormValue("new_password") != "" && (r.FormValue("user_id") != "" || r.PathValue("id") != "") {
 		h.handleWebResetPassword(w, r)
 		return
@@ -263,7 +262,6 @@ func (h *Handler) handleWebEditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Jika akun dinonaktifkan atau privilege admin berubah: cabut semua sesi aktif pengguna
 	if !isActive || (existing.IsPlatformAdmin != isAdmin) {
 		_ = h.sessionMgr.RevokeAllForUser(r.Context(), id)
 	}
@@ -299,7 +297,6 @@ func (h *Handler) handleWebResetPassword(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Reset password wajib mencabut seluruh sesi aktif
 	_ = h.sessionMgr.RevokeAllForUser(r.Context(), id)
 
 	view.SetFlashSuccess(w, "Kata sandi pengguna berhasil direset dan seluruh sesi aktif telah dicabut!")

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 )
 
 const (
@@ -18,6 +20,7 @@ const (
 	CodeValidation       = "validation_error"
 	CodeConflict         = "conflict"
 	CodeConnectionFailed = "db_connection_failed"
+	CodePlatformTarget   = "platform_database"
 	CodeInternal         = "internal_error"
 )
 
@@ -26,6 +29,9 @@ const (
 	MsgForbidden       = "Anda tidak memiliki izin untuk melakukan aksi ini."
 	MsgNotFound        = "Resource tidak ditemukan atau Anda tidak memiliki akses."
 	MsgInternal        = "Terjadi kesalahan pada server."
+
+	MsgConnectionFailed = "Tidak dapat terhubung ke database. Coba lagi nanti atau hubungi Platform Admin."
+	MsgPlatformTarget   = "Koneksi ini menunjuk ke database platform sehingga tidak boleh dikelola. Hubungi Platform Admin."
 )
 
 type ErrorBody struct {
@@ -64,6 +70,30 @@ func NotFound(w http.ResponseWriter) {
 func Internal(w http.ResponseWriter, r *http.Request, err error) {
 	slog.Error("internal error", "method", r.Method, "path", r.URL.Path, "err", err)
 	WriteError(w, http.StatusInternalServerError, CodeInternal, MsgInternal)
+}
+
+func ConnStatus(err error) (status int, code, msg string, ok bool) {
+	switch {
+	case errors.Is(err, connmgr.ErrNotFound):
+		return http.StatusNotFound, CodeNotFound, MsgNotFound, true
+	case errors.Is(err, connmgr.ErrPlatformTarget):
+		return http.StatusConflict, CodePlatformTarget, MsgPlatformTarget, true
+	case errors.Is(err, connmgr.ErrConnectionFailed):
+		return http.StatusServiceUnavailable, CodeConnectionFailed, MsgConnectionFailed, true
+	}
+	return 0, "", "", false
+}
+
+func ConnError(w http.ResponseWriter, r *http.Request, err error) {
+	status, code, msg, ok := ConnStatus(err)
+	if !ok {
+		Internal(w, r, err)
+		return
+	}
+	if status == http.StatusServiceUnavailable {
+		slog.Warn("koneksi database target gagal", "path", r.URL.Path, "err", err)
+	}
+	WriteError(w, status, code, msg)
 }
 
 const MaxBodyBytes = 1 << 20

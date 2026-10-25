@@ -76,13 +76,13 @@ func (h *Handler) postLogin(w http.ResponseWriter, r *http.Request) {
 	if old, err := h.sessions.ExtractToken(r); err == nil {
 		_ = h.sessions.Revoke(r.Context(), old, nil)
 	}
-	_, token, err := h.sessions.CreateSession(r.Context(), user.ID, r.RemoteAddr, r.UserAgent())
+	sess, token, err := h.sessions.CreateSession(r.Context(), user.ID, r.RemoteAddr, r.UserAgent())
 	if err != nil {
 		log.Printf("[Login] gagal membuat session: user=%s err=%v", user.ID, err)
 		h.render(w, r, http.StatusInternalServerError, pageData{Username: username, Error: msgInternal})
 		return
 	}
-	h.sessions.SetCookie(w, token)
+	h.sessions.SetCookie(w, token, sess.AbsoluteExpiresAt)
 	web.Redirect(w, r, AfterLoginPath)
 }
 

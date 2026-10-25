@@ -39,7 +39,6 @@ func setupTestWebEnv(t *testing.T) (http.Handler, auth.UserRepository, *session.
 		connStr = "postgres://postgres:postgres@127.0.0.1:5433/platform_db?sslmode=disable"
 	}
 
-
 	db, err := database.InitDB(connStr)
 	if err != nil {
 		t.Fatalf("Gagal terhubung ke DB: %v", err)
@@ -54,7 +53,6 @@ func setupTestWebEnv(t *testing.T) (http.Handler, auth.UserRepository, *session.
 	handler := NewHandler(userRepo, sessionMgr, viewEngine)
 	handler.RegisterRoutes(mux)
 
-	// Pasang CSRF middleware
 	wrapped := csrf.Middleware(false)(mux)
 
 	return wrapped, userRepo, sessionMgr
@@ -123,7 +121,6 @@ func TestWeb_LoginForm_SuccessAndRedirect(t *testing.T) {
 		t.Errorf("Expected redirect to /admin/users, got: %s", location)
 	}
 
-	// Pastikan cookie sesi diset
 	var sessionCookie *http.Cookie
 	for _, c := range rec.Result().Cookies() {
 		if c.Name == session.SessionCookieName && c.Value != "" {
@@ -165,7 +162,6 @@ func TestWeb_LoginForm_InvalidCredentials(t *testing.T) {
 		t.Errorf("Expected redirect back to /login, got %s", location)
 	}
 
-	// Pastikan tidak ada cookie sesi yang diset
 	for _, c := range rec.Result().Cookies() {
 		if c.Name == session.SessionCookieName && c.Value != "" {
 			t.Errorf("Did not expect session cookie to be set on invalid credentials")
@@ -176,7 +172,6 @@ func TestWeb_LoginForm_InvalidCredentials(t *testing.T) {
 func TestWeb_AdminUsersPage_ProtectionAndRender(t *testing.T) {
 	handler, userRepo, sessionMgr := setupTestWebEnv(t)
 
-	// 1. Tanpa autentikasi -> Harus redirect ke /login
 	req := httptest.NewRequest("GET", "/admin/users", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -188,7 +183,6 @@ func TestWeb_AdminUsersPage_ProtectionAndRender(t *testing.T) {
 		t.Errorf("Expected redirect to /login, got %s", rec.Header().Get("Location"))
 	}
 
-	// 2. Dengan autentikasi Admin
 	admin, err := userRepo.GetByUsername(context.Background(), "admin")
 	if err != nil {
 		t.Fatalf("Failed to fetch admin user: %v", err)
@@ -249,7 +243,6 @@ func TestWeb_LogoutForm(t *testing.T) {
 		t.Errorf("Expected redirect to /login, got: %s", rec.Header().Get("Location"))
 	}
 
-	// Pastikan cookie sesi dibersihkan (MaxAge < 0)
 	var cleared bool
 	for _, c := range rec.Result().Cookies() {
 		if c.Name == session.SessionCookieName && (c.MaxAge < 0 || c.Value == "") {
@@ -266,7 +259,6 @@ func TestWeb_ResetPassword(t *testing.T) {
 	handler, userRepo, sessionMgr := setupTestWebEnv(t)
 	token, csrfCookie := getCSRFTokenAndCookie(handler)
 
-	// Buat user target dengan username unik
 	uniqueUsername := fmt.Sprintf("target_%d", time.Now().UnixNano()%1000000)
 	hPwd, _ := auth.HashPassword("OldPassword#123")
 	targetUser, err := userRepo.Create(context.Background(), uniqueUsername, hPwd, false)
@@ -277,7 +269,6 @@ func TestWeb_ResetPassword(t *testing.T) {
 	admin, _ := userRepo.GetByUsername(context.Background(), "admin")
 	_, adminToken, _ := sessionMgr.CreateSession(context.Background(), admin.ID, "127.0.0.1", "test-agent")
 
-	// 1. Reset password via standard URL: POST /admin/users/{id}/reset-password
 	form := url.Values{}
 	form.Set("csrf_token", token)
 	form.Set("new_password", "BrandNewPassword#456")
@@ -299,7 +290,6 @@ func TestWeb_ResetPassword(t *testing.T) {
 		t.Errorf("Expected redirect to /admin/users, got: %s", rec.Header().Get("Location"))
 	}
 
-	// Verifikasi password baru bekerja
 	updatedTarget, err := userRepo.GetByID(context.Background(), targetUser.ID)
 	if err != nil {
 		t.Fatalf("Failed to fetch target user: %v", err)
@@ -308,7 +298,6 @@ func TestWeb_ResetPassword(t *testing.T) {
 		t.Errorf("New password verification failed")
 	}
 
-	// 2. Reset password via Form Fallback: POST /admin/users with user_id and new_password
 	fallbackForm := url.Values{}
 	fallbackForm.Set("csrf_token", token)
 	fallbackForm.Set("user_id", targetUser.ID)
@@ -333,4 +322,3 @@ func TestWeb_ResetPassword(t *testing.T) {
 		t.Errorf("Fallback new password verification failed")
 	}
 }
-

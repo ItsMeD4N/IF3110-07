@@ -35,7 +35,6 @@ func setupTestUserEnv(t *testing.T) (*http.ServeMux, auth.UserRepository, *sessi
 	return mux, userRepo, sessionMgr
 }
 
-// helper membuat cookie login admin
 func createAdminSessionCookie(t *testing.T, sessionMgr *session.Manager) *http.Cookie {
 	adminID := "a0000000-0000-0000-0000-000000000001"
 	_, token, err := sessionMgr.CreateSession(context.Background(), adminID, "127.0.0.1", "Admin-Test")
@@ -50,7 +49,6 @@ func createAdminSessionCookie(t *testing.T, sessionMgr *session.Manager) *http.C
 	}
 }
 
-// helper membuat cookie login user biasa
 func createRegularUserSessionCookie(t *testing.T, userRepo auth.UserRepository, sessionMgr *session.Manager, username string) (*http.Cookie, string) {
 	ctx := context.Background()
 	_ = userRepo.Delete(ctx, username)
@@ -80,7 +78,6 @@ func createRegularUserSessionCookie(t *testing.T, userRepo auth.UserRepository, 
 func TestAdminUsers_Authorization(t *testing.T) {
 	mux, userRepo, sessionMgr := setupTestUserEnv(t)
 
-	// 1. Tanpa Login -> 401 Unauthorized
 	reqUnauth := httptest.NewRequest("GET", "/api/admin/users", nil)
 	recUnauth := httptest.NewRecorder()
 	mux.ServeHTTP(recUnauth, reqUnauth)
@@ -88,7 +85,6 @@ func TestAdminUsers_Authorization(t *testing.T) {
 		t.Fatalf("Expected 401 Unauthorized tanpa login, got %d", recUnauth.Code)
 	}
 
-	// 2. Login sebagai User Biasa (bukan Platform Admin) -> 403 Forbidden
 	userCookie, regularUserID := createRegularUserSessionCookie(t, userRepo, sessionMgr, "regular_test_user")
 	defer userRepo.Delete(context.Background(), regularUserID)
 
@@ -101,7 +97,6 @@ func TestAdminUsers_Authorization(t *testing.T) {
 		t.Fatalf("Expected 403 Forbidden untuk user biasa, got %d", recForbidden.Code)
 	}
 
-	// 3. Login sebagai Platform Admin -> 200 OK
 	adminCookie := createAdminSessionCookie(t, sessionMgr)
 	reqAdmin := httptest.NewRequest("GET", "/api/admin/users", nil)
 	reqAdmin.AddCookie(adminCookie)
@@ -123,7 +118,6 @@ func TestAdminUsers_CRUDLifecycle(t *testing.T) {
 		_ = userRepo.Delete(ctx, existing.ID)
 	}
 
-	// 1. CREATE USER (POST /api/admin/users)
 	createBody, _ := json.Marshal(map[string]interface{}{
 		"username":          testUsername,
 		"password":          "StrongSecret#123",
@@ -149,7 +143,6 @@ func TestAdminUsers_CRUDLifecycle(t *testing.T) {
 	}
 	defer userRepo.Delete(ctx, createdID)
 
-	// Duplicate Create -> 409 Conflict
 	reqDup := httptest.NewRequest("POST", "/api/admin/users", bytes.NewReader(createBody))
 	reqDup.Header.Set("Content-Type", "application/json")
 	reqDup.AddCookie(adminCookie)
@@ -159,7 +152,6 @@ func TestAdminUsers_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("Expected 409 Conflict untuk duplicate user, got %d", recDup.Code)
 	}
 
-	// 2. GET USER DETAIL (GET /api/admin/users/{id})
 	reqGet := httptest.NewRequest("GET", "/api/admin/users/"+createdID, nil)
 	reqGet.AddCookie(adminCookie)
 	recGet := httptest.NewRecorder()
@@ -168,7 +160,6 @@ func TestAdminUsers_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("Expected 200 OK untuk get user, got %d", recGet.Code)
 	}
 
-	// 3. UPDATE USER (PUT /api/admin/users/{id})
 	updateBody, _ := json.Marshal(map[string]interface{}{
 		"username":          testUsername + "_renamed",
 		"is_platform_admin": true,
@@ -184,8 +175,6 @@ func TestAdminUsers_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("Expected 200 OK untuk update user, got %d. Body: %s", recUpdate.Code, recUpdate.Body.String())
 	}
 
-	// 4. RESET PASSWORD (POST /api/admin/users/{id}/reset-password)
-	// Buat dummy active session untuk user ini terlebih dahulu
 	_, userToken, _ := sessionMgr.CreateSession(ctx, createdID, "127.0.0.1", "Before-Reset")
 	resetBody, _ := json.Marshal(map[string]string{
 		"new_password": "NewSecretPassword#456",
@@ -200,13 +189,11 @@ func TestAdminUsers_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("Expected 200 OK untuk reset password, got %d", recReset.Code)
 	}
 
-	// Verifikasi: Sesi lama user harus langsung revoked setelah reset password
 	_, err := sessionMgr.ValidateSession(ctx, userToken, nil)
 	if err != session.ErrSessionRevoked {
 		t.Fatalf("Sesi lama user harus revoked setelah password direset, got %v", err)
 	}
 
-	// 5. REVOKE SESSIONS (POST /api/admin/users/{id}/revoke-sessions)
 	_, userToken2, _ := sessionMgr.CreateSession(ctx, createdID, "127.0.0.1", "Before-Revoke")
 	reqRevoke := httptest.NewRequest("POST", "/api/admin/users/"+createdID+"/revoke-sessions", nil)
 	reqRevoke.AddCookie(adminCookie)
@@ -221,7 +208,6 @@ func TestAdminUsers_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("Sesi harus revoked setelah force logout, got %v", err)
 	}
 
-	// 6. DELETE USER (DELETE /api/admin/users/{id})
 	reqDelete := httptest.NewRequest("DELETE", "/api/admin/users/"+createdID, nil)
 	reqDelete.AddCookie(adminCookie)
 	recDelete := httptest.NewRecorder()
@@ -231,7 +217,6 @@ func TestAdminUsers_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("Expected 200 OK untuk delete user, got %d", recDelete.Code)
 	}
 
-	// Pastikan user sudah tidak ditemukan
 	_, err = userRepo.GetByID(ctx, createdID)
 	if err != auth.ErrUserNotFound {
 		t.Fatalf("User harusnya sudah dihapus dari DB, got %v", err)
@@ -243,7 +228,6 @@ func TestAdminUsers_SelfActionsPrevented(t *testing.T) {
 	adminCookie := createAdminSessionCookie(t, sessionMgr)
 	adminID := "a0000000-0000-0000-0000-000000000001"
 
-	// 1. Admin mencoba menonaktifkan akunnya sendiri -> harus ditolak 400 Bad Request
 	deactivateSelfBody, _ := json.Marshal(map[string]interface{}{
 		"username":          "admin",
 		"is_platform_admin": true,
@@ -259,7 +243,6 @@ func TestAdminUsers_SelfActionsPrevented(t *testing.T) {
 		t.Fatalf("Admin menonaktifkan dirinya sendiri harus ditolak 400 Bad Request, got %d", recDeact.Code)
 	}
 
-	// 2. Admin mencoba menghapus akunnya sendiri -> harus ditolak 400 Bad Request
 	reqDel := httptest.NewRequest("DELETE", "/api/admin/users/"+adminID, nil)
 	reqDel.AddCookie(adminCookie)
 	recDel := httptest.NewRecorder()

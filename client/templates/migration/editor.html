@@ -1,38 +1,35 @@
-{{define "title"}}SQL Migration{{end}}
+{{define "title"}}Migration{{end}}
 {{define "content"}}
 {{$id := .Data.DatabaseID}}
+<p class="crumb"><a href="/databases/{{$id}}">Database</a> / Migration</p>
 <header class="page-header">
   <div>
-    <p class="crumb"><a href="/databases/{{$id}}">Database</a> / SQL Migration</p>
-    <h1>SQL Migration</h1>
-    <p class="muted">Tinjau query dan analisis execution plan sebelum mengeksekusi migrasi.</p>
+    <h1>Migration</h1>
+    <p class="muted">Susun SQL sebagai draft, tinjau execution plan, lalu jalankan. Setiap eksekusi tercatat di riwayat.</p>
   </div>
-  <a class="btn btn-secondary" href="/databases/{{$id}}/migrations/history">Lihat history</a>
+  <a class="btn" href="/databases/{{$id}}/migrations/history">Riwayat</a>
 </header>
 
-{{if .Data.Error}}<div class="alert alert-error" role="alert">{{.Data.Error}}</div>{{end}}
-
-<section class="card">
-  <form id="migrationForm" method="post" action="/databases/{{$id}}/migrations">
+{{if or .Data.CanCreate .Data.CanRun}}
+<section class="card form-card">
+  <h2>Migration baru</h2>
+  {{with .Data.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}
+  <form id="migrationForm" method="post" action="/databases/{{$id}}/migrations" class="form">
     {{.CSRFField}}
+    <label><span>Nama <span class="muted">(opsional)</span></span>
+      <input name="name" value="{{.Data.Name}}" maxlength="200" placeholder="mis. tambah kolom email ke customers">
+    </label>
     <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
       <label for="sql" style="font-weight: 600;">SQL Statement</label>
       <span class="muted small">Maksimal 1 MiB</span>
     </div>
-    <textarea id="sql" name="sql" rows="12" spellcheck="false" required placeholder="Contoh Query DML / Analisis:
-SELECT u.username, g.name 
-FROM users u 
-JOIN group_members gm ON u.id = gm.user_id 
-JOIN user_groups g ON gm.group_id = g.id;
-
--- atau DML:
-INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Data.SQL}}</textarea>
-
-    <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem; flex-wrap: wrap;">
-      {{if .Data.CanEdit}}
-      <button class="btn btn-primary" type="submit" onclick="return confirm('Jalankan SQL migration ini pada database target? Pastikan SQL sudah ditinjau.')">
-        Jalankan migration
-      </button>
+    <textarea id="sql" class="sql" name="sql" rows="12" spellcheck="false" required placeholder="ALTER TABLE customers ADD COLUMN email text;">{{.Data.SQL}}</textarea>
+    <p class="muted small">SQL dijalankan dalam satu transaksi: jika ada statement yang gagal, semua perubahan di-rollback. Jangan tulis BEGIN/COMMIT sendiri.</p>
+    <div class="form-actions" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+      <button class="btn" type="submit" name="action" value="draft">Simpan draft</button>
+      {{if or .Data.CanRun .Data.CanEdit}}
+      <button class="btn btn-primary" type="submit" name="action" value="run"
+              onclick="return confirm('Jalankan SQL ini sekarang pada database target?')">Jalankan sekarang</button>
       {{end}}
       <button class="btn btn-secondary" id="btnExplain" type="button">
         🔍 Analisis Execution Plan (EXPLAIN)
@@ -42,13 +39,27 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
         <span>Sertakan <strong>ANALYZE</strong> (Ukur waktu nyata &amp; row aktual via Safe Rollback)</span>
       </label>
     </div>
-    {{if not .Data.CanEdit}}
-    <p class="muted small" style="margin-top: 0.75rem;">Akses Anda View Only. Anda dapat menganalisis query execution plan dengan EXPLAIN, namun eksekusi migrasi dinonaktifkan.</p>
-    {{end}}
   </form>
 </section>
+{{else}}
+<div class="alert alert-info">Akses Anda View Only: Anda bisa melihat draft dan riwayat migration, serta menganalisis query dengan EXPLAIN, namun eksekusi migrasi dinonaktifkan.</div>
+{{end}}
 
-<!-- Panel Hasil Analisis Execution Plan -->
+<section class="card">
+  <div class="card-head"><h2>Draft</h2><span class="count">{{len .Data.Drafts}}</span></div>
+  {{if .Data.Drafts}}
+  <ul class="list">
+    {{range .Data.Drafts}}
+    <li>
+      <span><a class="strong" href="/databases/{{$id}}/migrations/drafts/{{.ID}}">{{if .Name}}{{.Name}}{{else}}Draft #{{.ID}}{{end}}</a>
+        <span class="muted small">· diubah {{.UpdatedBy}}, {{formatTime .UpdatedAt}}</span></span>
+      <a class="btn btn-sm" href="/databases/{{$id}}/migrations/drafts/{{.ID}}">Buka</a>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}<div class="empty">Belum ada draft.</div>{{end}}
+</section>
+
 <section class="card" id="explainPanel" style="display: none; margin-top: 1.5rem;">
   <div class="page-header" style="margin-bottom: 1rem;">
     <div>
@@ -171,7 +182,6 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
     badge.className = 'badge ' + (analyze ? 'badge-warn' : 'badge-neutral');
 
     try {
-      // Ambil CSRF token dari form
       let csrfToken = '';
       const csrfInput = document.querySelector('input[name="csrf_token"]');
       if (csrfInput) csrfToken = csrfInput.value;
@@ -217,7 +227,6 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
       qCard.style.paddingBottom = '16px';
       qCard.style.borderBottom = idx < results.length - 1 ? '1px solid var(--border)' : 'none';
 
-      // Header per statement
       const title = document.createElement('h3');
       title.style.fontSize = '1.05rem';
       title.style.margin = '0 0 8px 0';
@@ -247,7 +256,6 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
 
       const s = r.summary;
 
-      // Peringatan optimasi jika ada
       if (s.warnings && s.warnings.length > 0) {
         s.warnings.forEach(w => {
           const warn = document.createElement('div');
@@ -257,11 +265,9 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
         });
       }
 
-      // Metric Grid
       const grid = document.createElement('div');
       grid.className = 'plan-summary-grid';
 
-      // 1. Jenis Scan
       const cardScan = createMetricCard('Jenis Scan', '');
       const scanVal = cardScan.querySelector('.plan-metric-val');
       if (s.scan_types && s.scan_types.length > 0) {
@@ -274,7 +280,6 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
       }
       grid.appendChild(cardScan);
 
-      // 2. Penggunaan Index
       const cardIdx = createMetricCard('Index Digunakan', '');
       const idxVal = cardIdx.querySelector('.plan-metric-val');
       if (s.indexes_used && s.indexes_used.length > 0) {
@@ -284,7 +289,6 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
       }
       grid.appendChild(cardIdx);
 
-      // 3. Join Strategy
       const cardJoin = createMetricCard('Join Strategy', '');
       const joinVal = cardJoin.querySelector('.plan-metric-val');
       if (s.join_strategies && s.join_strategies.length > 0) {
@@ -294,18 +298,15 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
       }
       grid.appendChild(cardJoin);
 
-      // 4. Estimated Cost
       const costText = `${s.startup_cost.toFixed(2)} .. ${s.total_cost.toFixed(2)}`;
       grid.appendChild(createMetricCard('Estimated Cost', costText));
 
-      // 5. Actual Execution Time
       if (isAnalyze && s.actual_time_ms !== undefined && s.actual_time_ms !== null) {
         grid.appendChild(createMetricCard('Actual Execution Time', `${s.actual_time_ms.toFixed(3)} ms`));
       } else {
         grid.appendChild(createMetricCard('Actual Execution Time', 'Hanya di ANALYZE'));
       }
 
-      // 6. Rows Processed
       let rowText = `Plan: ${s.rows_planned}`;
       if (isAnalyze && s.rows_processed !== undefined && s.rows_processed !== null) {
         rowText += ` · Aktual: ${s.rows_processed}`;
@@ -314,7 +315,6 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
 
       qCard.appendChild(grid);
 
-      // Visual Plan Hierarchy Tree
       if (r.root_node) {
         const treeSection = document.createElement('div');
         treeSection.style.marginTop = '16px';
@@ -325,7 +325,6 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
         qCard.appendChild(treeSection);
       }
 
-      // Raw Output Collapsible
       if (r.raw_text) {
         const details = document.createElement('details');
         details.style.marginTop = '12px';

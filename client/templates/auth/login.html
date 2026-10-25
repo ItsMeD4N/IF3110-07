@@ -5,9 +5,9 @@
   <p class="muted">Gunakan akun yang dibuat oleh Platform Admin.</p>
   <form method="post" action="/login" class="form" autocomplete="on">
     {{.CSRFField}}
-    {{with .Data.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}
+    {{if .Data}}{{with .Data.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}{{end}}
     <label>Username
-      <input name="username" value="{{.Data.Username}}" autocomplete="username" required autofocus spellcheck="false">
+      <input name="username" value="{{if .Data}}{{.Data.Username}}{{end}}" autocomplete="username" required autofocus spellcheck="false">
     </label>
     <label>Password
       <input name="password" type="password" autocomplete="current-password" required>

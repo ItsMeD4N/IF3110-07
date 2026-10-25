@@ -3,8 +3,6 @@ package dbmanager
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -39,7 +37,8 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/databases/{dbID}/schema", db(authz.PermDBViewSchema, m.apiSchema))
 	mux.Handle("GET /api/databases/{dbID}/tables/{table}/data", db(authz.PermDBViewData, m.apiTableData))
 	if m.Views != nil {
-		mux.Handle("GET /databases/{dbID}/viewer", db(authz.PermDBViewSchema, m.pageViewer))
+		pmw := m.MW.WithDeniedHandler(m.Views.Denied)
+		mux.Handle("GET /databases/{dbID}/viewer", m.AuthMW.RequireAuth(pmw.RequireDB(authz.PermDBViewSchema, http.HandlerFunc(m.pageViewer))))
 	}
 }
 
@@ -320,7 +319,7 @@ func (m *Module) pageViewer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := m.Conns.Pool(r.Context(), id); err != nil {
-		writeDBError(w, r, err)
+		m.Views.ConnError(w, r, err)
 		return
 	}
 	m.Views.Render(w, r, http.StatusOK, "dbmanager/viewer.html", "Database Viewer", map[string]any{"DatabaseID": id, "Schema": r.URL.Query().Get("schema"), "Table": r.URL.Query().Get("table")})
@@ -345,19 +344,5 @@ func contains(ss []string, s string) bool {
 	return false
 }
 func writeDBError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, connmgr.ErrNotFound) {
-		httpx.NotFound(w)
-		return
-	}
-	var ce *connmgr.ConnError
-	if errors.As(err, &ce) {
-		httpx.WriteError(w, http.StatusServiceUnavailable, httpx.CodeConnectionFailed, "Database target tidak dapat dijangkau")
-		return
-	}
-	httpx.Internal(w, r, fmt.Errorf("dbmanager: %w", err))
-}
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	httpx.ConnError(w, r, fmt.Errorf("dbmanager: %w", err))
 }

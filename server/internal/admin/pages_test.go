@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/testutil"
 )
 
@@ -175,7 +176,7 @@ func TestDatabasePages(t *testing.T) {
 
 	rec = e.page(alice, "POST", fmt.Sprintf("/databases/%d/open", dead), url.Values{})
 	expectStatus(t, rec, http.StatusServiceUnavailable)
-	expectBody(t, rec.Body.String(), MsgConnectionFailed)
+	expectBody(t, rec.Body.String(), httpx.MsgConnectionFailed)
 	if strings.Contains(rec.Body.String(), deadPassword) {
 		t.Fatal("halaman koneksi gagal membocorkan password")
 	}

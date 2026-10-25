@@ -1,0 +1,18 @@
+{{define "title"}}Migration v{{.Data.Migration.Version}}{{end}}
+{{define "content"}}
+{{$id := .Data.DatabaseID}}
+{{$m := .Data.Migration}}
+<p class="crumb"><a href="/databases/{{$id}}">Database</a> / <a href="/databases/{{$id}}/migrations/history">Riwayat</a> / v{{$m.Version}}</p>
+<header class="page-header">
+  <div>
+    <h1>Migration v{{$m.Version}}{{if $m.Name}} · {{$m.Name}}{{end}}</h1>
+    <p class="muted">Dijalankan {{$m.Executor}} · {{formatTime $m.ExecutedAt}}</p>
+  </div>
+  <span class="badge badge-{{$m.Status}}">{{$m.Status}}</span>
+</header>
+{{if $m.Error}}<div class="alert alert-error" role="alert">Gagal, semua perubahan di-rollback: {{$m.Error}}</div>{{end}}
+<section class="card">
+  <h2>SQL</h2>
+  <pre class="sql">{{$m.SQL}}</pre>
+</section>
+{{end}}

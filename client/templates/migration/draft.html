@@ -1,0 +1,49 @@
+{{define "title"}}{{if .Data.Draft.Name}}{{.Data.Draft.Name}}{{else}}Draft #{{.Data.Draft.ID}}{{end}}{{end}}
+{{define "content"}}
+{{$id := .Data.DatabaseID}}
+{{$d := .Data.Draft}}
+{{$csrf := .CSRFField}}
+<p class="crumb"><a href="/databases/{{$id}}">Database</a> / <a href="/databases/{{$id}}/migrations">Migration</a> / Draft #{{$d.ID}}</p>
+<header class="page-header">
+  <div>
+    <h1>{{if $d.Name}}{{$d.Name}}{{else}}Draft #{{$d.ID}}{{end}}</h1>
+    <p class="muted">Dibuat {{$d.CreatedBy}} {{formatTime $d.CreatedAt}} · terakhir diubah {{$d.UpdatedBy}} {{formatTime $d.UpdatedAt}}</p>
+  </div>
+  {{if .Data.CanEdit}}
+  <form method="post" action="/databases/{{$id}}/migrations/drafts/{{$d.ID}}/delete" onsubmit="return confirm('Hapus draft ini?')">
+    {{$csrf}}<button class="btn btn-danger-ghost" type="submit">Hapus draft</button>
+  </form>
+  {{end}}
+</header>
+
+{{with .Data.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}
+
+<section class="card">
+  {{if .Data.CanEdit}}
+  <form method="post" action="/databases/{{$id}}/migrations/drafts/{{$d.ID}}" class="form">
+    {{$csrf}}
+    <label><span>Nama <span class="muted">(opsional)</span></span>
+      <input name="name" value="{{$d.Name}}" maxlength="200">
+    </label>
+    <label>SQL
+      <textarea class="sql" name="sql" rows="16" spellcheck="false" required>{{$d.SQL}}</textarea>
+    </label>
+    <div class="form-actions"><button class="btn" type="submit">Simpan perubahan</button></div>
+  </form>
+  {{else}}
+  <h2>SQL</h2>
+  <pre class="sql">{{$d.SQL}}</pre>
+  {{end}}
+</section>
+
+{{if .Data.CanRun}}
+<section class="card">
+  <h2>Jalankan</h2>
+  <p class="muted small">Yang dijalankan adalah versi draft yang sudah tersimpan. Simpan perubahan dulu sebelum menjalankan. Jika berhasil, draft dipindahkan ke riwayat; jika gagal, semua perubahan di-rollback dan draft tetap ada.</p>
+  <form method="post" action="/databases/{{$id}}/migrations/drafts/{{$d.ID}}/run"
+        onsubmit="return confirm('Jalankan draft ini pada database target?')">
+    {{$csrf}}<button class="btn btn-primary" type="submit">Jalankan migration</button>
+  </form>
+</section>
+{{end}}
+{{end}}

@@ -24,10 +24,8 @@ func TestSessionRepository_Lifecycle(t *testing.T) {
 	repo := NewSessionRepository(db)
 	ctx := context.Background()
 
-	// Gunakan seed admin ID
 	adminUserID := "a0000000-0000-0000-0000-000000000001"
 
-	// 1. Buat sesi baru
 	token1, err := GenerateOpaqueToken()
 	if err != nil {
 		t.Fatalf("Gagal generate token: %v", err)
@@ -55,7 +53,6 @@ func TestSessionRepository_Lifecycle(t *testing.T) {
 		t.Fatalf("Session ID harus diisi setelah insert")
 	}
 
-	// 2. Ambil sesi berdasarkan token hash
 	fetched, err := repo.GetSessionByTokenHash(ctx, tokenHash1)
 	if err != nil {
 		t.Fatalf("Gagal mengambil sesi: %v", err)
@@ -64,26 +61,29 @@ func TestSessionRepository_Lifecycle(t *testing.T) {
 		t.Fatalf("Expected UserID %s, got %s", adminUserID, fetched.UserID)
 	}
 
-	// 3. Update idle expiry
 	updatedIdle := now.Add(45 * time.Minute)
 	err = repo.UpdateIdleExpiry(ctx, fetched.ID, updatedIdle)
 	if err != nil {
 		t.Fatalf("Gagal update idle expiry: %v", err)
 	}
 
-	// 4. Rotasi Sesi
 	token2, _ := GenerateOpaqueToken()
 	tokenHash2 := HashToken(token2)
 	graceUntil := time.Now().Add(GracePeriod)
 	newIdle := time.Now().Add(IdleTimeout)
 
-	err = repo.RotateSession(ctx, fetched.ID, tokenHash2, tokenHash1, graceUntil, newIdle, time.Now())
-	if err != nil {
-		t.Fatalf("Gagal rotasi sesi: %v", err)
+	rotated, err := repo.RotateSession(ctx, fetched.ID, tokenHash2, tokenHash1, graceUntil, newIdle, time.Now())
+	if err != nil || !rotated {
+		t.Fatalf("Gagal rotasi sesi: rotated=%v err=%v", rotated, err)
 	}
 	defer repo.RevokeSession(ctx, tokenHash2)
 
-	// Pastikan pencarian menggunakan token baru berhasil
+	token3, _ := GenerateOpaqueToken()
+	again, err := repo.RotateSession(ctx, fetched.ID, HashToken(token3), tokenHash1, graceUntil, newIdle, time.Now())
+	if err != nil || again {
+		t.Fatalf("Rotasi ganda dari token lama seharusnya ditolak: rotated=%v err=%v", again, err)
+	}
+
 	rotatedByNew, err := repo.GetSessionByTokenHash(ctx, tokenHash2)
 	if err != nil {
 		t.Fatalf("Gagal cari sesi dengan token baru: %v", err)
@@ -92,7 +92,6 @@ func TestSessionRepository_Lifecycle(t *testing.T) {
 		t.Fatalf("RotatedFromTokenHash harus menampung hash token lama")
 	}
 
-	// Pastikan pencarian menggunakan token lama juga masih menemukan record yang sama (untuk grace period)
 	rotatedByOld, err := repo.GetSessionByTokenHash(ctx, tokenHash1)
 	if err != nil {
 		t.Fatalf("Gagal cari sesi dengan token lama: %v", err)
@@ -101,7 +100,6 @@ func TestSessionRepository_Lifecycle(t *testing.T) {
 		t.Fatalf("ID sesi tidak sama antara lookup token baru dan token lama")
 	}
 
-	// 5. Revoke Sesi
 	err = repo.RevokeSession(ctx, tokenHash2)
 	if err != nil {
 		t.Fatalf("Gagal revoke session: %v", err)
