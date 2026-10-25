@@ -44,76 +44,76 @@
 </section>
 <script>
   (() => {
-    const dbID = {{.Data.DatabaseID}};
+    const dbID = Number("{{.Data.DatabaseID}}");
     const schemaSelect = document.getElementById('schemaSelect');
-  const tableSelect = document.getElementById('tableSelect');
-  const status = document.getElementById('viewerStatus');
-  const metadata = document.getElementById('tableMetadata');
-  const dataArea = document.getElementById('tableData');
-  const summary = document.getElementById('dataSummary');
-  let schemaInfo = null, offset = 0, total = 0, currentTable = '';
-  const limit = 50;
-  const el = (tag, text) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = String(text); return n; };
-  async function loadSchema() {
-    try {
-      const res = await fetch(`/api/databases/${dbID}/schema`);
-      const data = await res.json(); if (!res.ok) throw new Error(data.message || data.error || 'Gagal memuat schema');
-      schemaInfo = data; schemaSelect.replaceChildren();
-      data.schemas.forEach(s => schemaSelect.add(new Option(s, s)));
-      if (data.selected_schema) schemaSelect.value = data.selected_schema;
-      await loadTables();
-      status.textContent = `${data.schemas.length} schema ditemukan.`;
-    } catch (e) { status.textContent = e.message; }
-  }
-  async function loadTables() {
-    try {
-      const res = await fetch(`/api/databases/${dbID}/schema?schema=${encodeURIComponent(schemaSelect.value)}`);
-      const data = await res.json(); if (!res.ok) throw new Error(data.message || data.error || 'Gagal memuat tabel');
-      schemaInfo = data; tableSelect.replaceChildren();
-      data.tables.forEach(t => tableSelect.add(new Option(`${t.name} (${t.type.toLowerCase()})`, t.name)));
-      status.textContent = `${data.tables.length} tabel/view pada schema ${data.selected_schema}.`;
-      if (data.tables.length) { tableSelect.value = data.tables[0].name; await showTable(); }
-      else { metadata.replaceChildren(el('p', 'Tidak ada tabel pada schema ini.')); dataArea.replaceChildren(); summary.textContent = ''; }
-    } catch (e) { status.textContent = e.message; }
-  }
-  function makeTable(headers, rows) {
-    const t = el('table'); const thead = el('thead'), hr = el('tr');
-    headers.forEach(h => hr.append(el('th', h))); thead.append(hr); t.append(thead);
-    const tbody = el('tbody');
-    rows.forEach(row => { const tr = el('tr'); row.forEach(v => tr.append(el('td', v === null ? 'NULL' : (typeof v === 'object' ? JSON.stringify(v) : v)))); tbody.append(tr); });
-    t.append(tbody); return t;
-  }
-  async function showTable() {
-    currentTable = tableSelect.value; offset = 0;
-    if (!currentTable) return;
-    const t = (schemaInfo.tables || []).find(x => x.name === currentTable);
-    metadata.replaceChildren();
-    if (t) {
-      metadata.append(el('h3', `${t.name} — ${t.type}`));
-      metadata.append(el('h4', 'Kolom'));
-      metadata.append(makeTable(['Nama', 'Tipe', 'Nullable', 'Default', 'Urutan'], t.columns.map(c => [c.name, c.type, c.nullable ? 'Ya' : 'Tidak', c.default || '—', c.ordinal])));
-      metadata.append(el('h4', 'Constraint'));
-      metadata.append(t.constraints.length ? makeTable(['Nama', 'Tipe', 'Definisi'], t.constraints.map(c => [c.name, c.type, c.definition])) : el('p', 'Tidak ada constraint.'));
-      metadata.append(el('h4', 'Index'));
-      metadata.append(t.indexes.length ? makeTable(['Nama', 'Definisi'], t.indexes.map(i => [i.name, i.definition])) : el('p', 'Tidak ada index.'));
+    const tableSelect = document.getElementById('tableSelect');
+    const status = document.getElementById('viewerStatus');
+    const metadata = document.getElementById('tableMetadata');
+    const dataArea = document.getElementById('tableData');
+    const summary = document.getElementById('dataSummary');
+    let schemaInfo = null, offset = 0, total = 0, currentTable = '';
+    const limit = 50;
+    const el = (tag, text) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = String(text); return n; };
+    async function loadSchema() {
+      try {
+        const res = await fetch(`/api/databases/${dbID}/schema`);
+        const data = await res.json(); if (!res.ok) throw new Error(data.message || data.error || 'Gagal memuat schema');
+        schemaInfo = data; schemaSelect.replaceChildren();
+        data.schemas.forEach(s => schemaSelect.add(new Option(s, s)));
+        if (data.selected_schema) schemaSelect.value = data.selected_schema;
+        await loadTables();
+        status.textContent = `${data.schemas.length} schema ditemukan.`;
+      } catch (e) { status.textContent = e.message; }
     }
-    await loadData();
-  }
-  async function loadData() {
-    try {
-      const res = await fetch(`/api/databases/${dbID}/tables/${encodeURIComponent(currentTable)}/data?schema=${encodeURIComponent(schemaSelect.value)}&limit=${limit}&offset=${offset}`);
-      const data = await res.json(); if (!res.ok) throw new Error(data.message || data.error || 'Gagal memuat data');
-      total = data.total; dataArea.replaceChildren(makeTable(data.columns, data.rows));
-      summary.textContent = `Menampilkan ${data.rows.length ? offset + 1 : 0}–${offset + data.rows.length} dari ${total} baris`;
-      document.getElementById('prevPage').disabled = offset === 0;
-      document.getElementById('nextPage').disabled = offset + limit >= total;
-    } catch (e) { dataArea.replaceChildren(el('p', e.message)); }
-  }
-  schemaSelect.addEventListener('change', loadTables);
-  document.getElementById('loadTable').addEventListener('click', showTable);
-  document.getElementById('prevPage').addEventListener('click', () => { offset = Math.max(0, offset - limit); loadData(); });
-  document.getElementById('nextPage').addEventListener('click', () => { if (offset + limit < total) { offset += limit; loadData(); } });
-  loadSchema();
-}) ();
+    async function loadTables() {
+      try {
+        const res = await fetch(`/api/databases/${dbID}/schema?schema=${encodeURIComponent(schemaSelect.value)}`);
+        const data = await res.json(); if (!res.ok) throw new Error(data.message || data.error || 'Gagal memuat tabel');
+        schemaInfo = data; tableSelect.replaceChildren();
+        data.tables.forEach(t => tableSelect.add(new Option(`${t.name} (${t.type.toLowerCase()})`, t.name)));
+        status.textContent = `${data.tables.length} tabel/view pada schema ${data.selected_schema}.`;
+        if (data.tables.length) { tableSelect.value = data.tables[0].name; await showTable(); }
+        else { metadata.replaceChildren(el('p', 'Tidak ada tabel pada schema ini.')); dataArea.replaceChildren(); summary.textContent = ''; }
+      } catch (e) { status.textContent = e.message; }
+    }
+    function makeTable(headers, rows) {
+      const t = el('table'); const thead = el('thead'), hr = el('tr');
+      headers.forEach(h => hr.append(el('th', h))); thead.append(hr); t.append(thead);
+      const tbody = el('tbody');
+      rows.forEach(row => { const tr = el('tr'); row.forEach(v => tr.append(el('td', v === null ? 'NULL' : (typeof v === 'object' ? JSON.stringify(v) : v)))); tbody.append(tr); });
+      t.append(tbody); return t;
+    }
+    async function showTable() {
+      currentTable = tableSelect.value; offset = 0;
+      if (!currentTable) return;
+      const t = (schemaInfo.tables || []).find(x => x.name === currentTable);
+      metadata.replaceChildren();
+      if (t) {
+        metadata.append(el('h3', `${t.name} — ${t.type}`));
+        metadata.append(el('h4', 'Kolom'));
+        metadata.append(makeTable(['Nama', 'Tipe', 'Nullable', 'Default', 'Urutan'], t.columns.map(c => [c.name, c.type, c.nullable ? 'Ya' : 'Tidak', c.default || '—', c.ordinal])));
+        metadata.append(el('h4', 'Constraint'));
+        metadata.append(t.constraints.length ? makeTable(['Nama', 'Tipe', 'Definisi'], t.constraints.map(c => [c.name, c.type, c.definition])) : el('p', 'Tidak ada constraint.'));
+        metadata.append(el('h4', 'Index'));
+        metadata.append(t.indexes.length ? makeTable(['Nama', 'Definisi'], t.indexes.map(i => [i.name, i.definition])) : el('p', 'Tidak ada index.'));
+      }
+      await loadData();
+    }
+    async function loadData() {
+      try {
+        const res = await fetch(`/api/databases/${dbID}/tables/${encodeURIComponent(currentTable)}/data?schema=${encodeURIComponent(schemaSelect.value)}&limit=${limit}&offset=${offset}`);
+        const data = await res.json(); if (!res.ok) throw new Error(data.message || data.error || 'Gagal memuat data');
+        total = data.total; dataArea.replaceChildren(makeTable(data.columns, data.rows));
+        summary.textContent = `Menampilkan ${data.rows.length ? offset + 1 : 0}–${offset + data.rows.length} dari ${total} baris`;
+        document.getElementById('prevPage').disabled = offset === 0;
+        document.getElementById('nextPage').disabled = offset + limit >= total;
+      } catch (e) { dataArea.replaceChildren(el('p', e.message)); }
+    }
+    schemaSelect.addEventListener('change', loadTables);
+    document.getElementById('loadTable').addEventListener('click', showTable);
+    document.getElementById('prevPage').addEventListener('click', () => { offset = Math.max(0, offset - limit); loadData(); });
+    document.getElementById('nextPage').addEventListener('click', () => { if (offset + limit < total) { offset += limit; loadData(); } });
+    loadSchema();
+  })();
 </script>
 {{end}}

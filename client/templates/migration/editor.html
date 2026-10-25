@@ -141,7 +141,7 @@ INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Dat
 
 <script>
 (() => {
-  const dbID = {{.Data.DatabaseID}};
+  const dbID = Number("{{.Data.DatabaseID}}");
   const sqlArea = document.getElementById('sql');
   const btnExplain = document.getElementById('btnExplain');
   const chkAnalyze = document.getElementById('chkAnalyze');
