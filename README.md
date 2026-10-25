@@ -10,78 +10,10 @@ Platform manajemen database terpusat berbasis web untuk mengelola akses multi-pe
 
 | No | Nama | NIM | Peran Utama | Lingkup Tanggung Jawab |
 | :---: | :--- | :---: | :---: | :--- |
-| 1 | **DAN** (ItsMeD4N) | *[Isi NIM]* | **Orang A** | **Identity, Session & Security Foundation** |
-| 2 | **YavieAzka** | *13524077* | **Orang B** | **Authorization & Admin Console, Bonus (Query Execution Plan Analysis)** |
-| 3 | **R27-04** (Raynaldi) | *[Isi NIM]* | **Orang C** | **Database Viewer, Migration** |
+| 1 | Yavie Azka Putra Araly | *13524077* | **Orang B** | **Authorization & Admin Console, Bonus (Query Execution Plan Analysis)** |
+| 2 | Rainaldi Pratama F Sembiring | 13524117 | **Orang C** | **Database Viewer, Migration** |
+| 3 | Daniel Putra Rywandi S | 13524143 | **Orang A** | **Identity, Session & Security Foundation** |
 
-### Detail Pembagian Tugas (Work Breakdown Structure)
-
-#### 1. Orang A — Identity, Authentication & Session Handling
-- **Database & Model**:
-  - Perancangan dan migrasi tabel metadata `users` dan `sessions` (`server/migrations/001_orang_a_users_sessions.sql`).
-  - Repository abstraksi pengguna dan sesi di backend (`internal/auth`, `internal/session`).
-- **Autentikasi & Keamanan Kredensial**:
-  - Hashing kata sandi menggunakan algoritma **Bcrypt** dengan cost factor 12 (`internal/auth/hash.go`).
-  - Pencegahan timing-attack pada perbandingan hash password.
-- **Manajemen Sesi Pengguna**:
-  - Implementasi *opaque session token* 32-byte cryptographically secure (`crypto/rand`).
-  - Penyimpanan token di database hanya dalam bentuk digest **SHA-256** (mencegah kebocoran sesi jika database terkompromi).
-  - Penegakan **Idle Timeout**: Sesi kedaluwarsa jika tidak ada aktivitas selama **30 menit**.
-  - Penegakan **Absolute Expiration**: Sesi hangus mutlak setelah **12 jam** sejak login pertama kali.
-  - **Rotasi Token Berkala**: Token sesi dirotasi setiap **15 menit** dengan **Grace Period 60 detik** untuk mencegah race condition request paralel.
-  - **Pencabutan Sesi (Revocation)**: Logout, reset password, dan deaktivasi akun mencabut (*force logout*) seluruh sesi aktif terkait.
-- **Proteksi Anti-CSRF**:
-  - Implementasi Double-Submit Cookie CSRF protection (`internal/csrf`).
-  - Penegakan verifikasi token anti-CSRF pada seluruh request *state-changing* (`POST`, `PUT`, `DELETE`).
-- **Antarmuka & Fitur Admin**:
-  - Halaman login web (`client/templates/auth/login.html`).
-  - Layout master Go template (`client/templates/layouts/base.html`, `navbar.html`, alert flash messages).
-  - Manajemen Pengguna oleh Platform Admin (`/admin/users`): Pembuatan user baru, edit status aktif/nonaktif, edit privilege admin, reset kata sandi, cabut sesi paksa, serta proteksi pencegahan self-deactivation dan self-deletion.
-
-#### 2. Orang B — Authorization, Groups & Database Connections
-- **Database & Model**:
-  - Perancangan dan migrasi tabel `groups`, `group_members`, `connections`, dan `group_database_grants` (`server/migrations/002_orang_b_groups_connections.sql`).
-- **Mesin Otorisasi (RBAC Engine)**:
-  - Implementasi pengecekan izin granular (*Permission Evaluation Engine*) pada context pengguna (`internal/authz`).
-  - Penegakan hak akses berbasis peran (Platform Admin vs Standard User; izin `View Only` vs `View + Edit` per database).
-- **Enkripsi Kredensial Database Target**:
-  - Enkripsi password koneksi database target *at-rest* menggunakan **NaCl Secretbox** (kriptografi authenticated symmetric encryption) (`internal/secretbox`).
-  - Kunci enkripsi dikelola melalui environment variable `APP_ENCRYPTION_KEY`.
-- **Manajemen Koneksi Database**:
-  - CRUD koneksi database target (`/admin/connections`).
-  - Fitur pengujian koneksi database (*Ping test*) secara live dengan estimasi latensi koneksi (ms) dan sanitasi error koneksi database.
-  - Pengelolaan connection pool dinamis per target database (`internal/connmgr`).
-- **Manajemen Group & Hak Akses**:
-  - CRUD group dan pengelolaan anggota group (`/admin/groups`).
-  - Pemberian izin akses database per group (`View Only` atau `View + Edit`).
-  - Dashboard eksplorasi database yang dapat diakses pengguna (`/databases`).
-
-#### 3. Orang C — Database Viewer & Migration Platform
-- **Database & Model**:
-  - Perancangan dan migrasi tabel riwayat migrasi `migrations` (`server/migrations/003_orang_c_migrations.sql`).
-- **Introspeksi Skema Database (Database Viewer)**:
-  - Introspeksi skema database target (`internal/dbmanager`): menampilkan daftar tabel, tipe objek, detail kolom, tipe data, nullable, default value, constraint (primary key, foreign key, unique, check), dan index.
-- **Pembaca Data Tabel (Data Viewer)**:
-  - Pembaca data baris tabel interaktif dengan paginasi aman (*limit* & *offset*).
-- **Mesin Eksekusi Migrasi (Migration Runner)**:
-  - Editor query SQL migration (`client/templates/migration/editor.html`).
-  - Eksekusi migrasi berurutan di dalam transaksi database atomik: otomatis melakukan **commit** jika berhasil dan **rollback penuh 100%** jika terjadi kegagalan/sintaks error.
-  - Pencatatan riwayat migrasi linear per database (nomor versi, query SQL, pelaksana/executor, timestamp eksekusi, status).
-  - Pembatasan hak eksekusi migrasi: hanya pengguna dengan izin `View + Edit` yang dapat menjalankan migrasi, sedangkan `View Only` hanya dapat melihat riwayat.
-
-#### 4. Fitur Bonus — Query Execution Plan Analysis (`EXPLAIN` & `EXPLAIN ANALYZE`)
-- **Backend (`internal/migration/explain.go`)**:
-  - Endpoint `POST /api/databases/{id}/migrations/explain`.
-  - Mendukung dua mode: **EXPLAIN** (estimasi biaya rencana query) dan **EXPLAIN ANALYZE** (eksekusi riil terukur).
-  - **Jaminan Keamanan Rollback**: Seluruh pemanggilan `EXPLAIN ANALYZE` (termasuk pada statement manipulasi data seperti `INSERT`, `UPDATE`, `DELETE`) dieksekusi di dalam transaksi yang di-*rollback* paksa (`defer tx.Rollback()`), menjamin **0 efek samping/data sampah** tertinggal di database target.
-  - Parser ekstraksi ringkasan metrik: tipe scan (Seq Scan, Index Scan), penggunaan index, strategi join (Hash Join, Nested Loop, Merge Join), startup/total cost, actual execution time (ms), dan perbandingan jumlah baris *planned* vs *processed*.
-- **Frontend (`client/templates/migration/editor.html`)**:
-  - Antarmuka visual interaktif dengan toggle mode analisis.
-  - Kartu metrik performa (*Execution Time, Total Cost, Rows Processed, Scan Types, Index Status*).
-  - Visualisasi pohon hirarki execution plan node.
-  - Collapsible view untuk raw ASCII execution plan dari engine PostgreSQL.
-
----
 
 ## Arsitektur & Teknologi
 
