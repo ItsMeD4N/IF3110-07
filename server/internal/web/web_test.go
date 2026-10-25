@@ -2,12 +2,14 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
@@ -259,3 +261,76 @@ func TestWeb_LogoutForm(t *testing.T) {
 		t.Errorf("Expected session cookie to be cleared on logout")
 	}
 }
+
+func TestWeb_ResetPassword(t *testing.T) {
+	handler, userRepo, sessionMgr := setupTestWebEnv(t)
+	token, csrfCookie := getCSRFTokenAndCookie(handler)
+
+	// Buat user target dengan username unik
+	uniqueUsername := fmt.Sprintf("target_%d", time.Now().UnixNano()%1000000)
+	hPwd, _ := auth.HashPassword("OldPassword#123")
+	targetUser, err := userRepo.Create(context.Background(), uniqueUsername, hPwd, false)
+	if err != nil {
+		t.Fatalf("Failed to create target user: %v", err)
+	}
+
+	admin, _ := userRepo.GetByUsername(context.Background(), "admin")
+	_, adminToken, _ := sessionMgr.CreateSession(context.Background(), admin.ID, "127.0.0.1", "test-agent")
+
+	// 1. Reset password via standard URL: POST /admin/users/{id}/reset-password
+	form := url.Values{}
+	form.Set("csrf_token", token)
+	form.Set("new_password", "BrandNewPassword#456")
+
+	req := httptest.NewRequest("POST", "/admin/users/"+targetUser.ID+"/reset-password", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(csrfCookie)
+	req.AddCookie(&http.Cookie{
+		Name:  session.SessionCookieName,
+		Value: adminToken,
+	})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("Expected 302 redirect after reset password, got %d", rec.Code)
+	}
+	if rec.Header().Get("Location") != "/admin/users" {
+		t.Errorf("Expected redirect to /admin/users, got: %s", rec.Header().Get("Location"))
+	}
+
+	// Verifikasi password baru bekerja
+	updatedTarget, err := userRepo.GetByID(context.Background(), targetUser.ID)
+	if err != nil {
+		t.Fatalf("Failed to fetch target user: %v", err)
+	}
+	if !auth.CheckPassword(updatedTarget.PasswordHash, "BrandNewPassword#456") {
+		t.Errorf("New password verification failed")
+	}
+
+	// 2. Reset password via Form Fallback: POST /admin/users with user_id and new_password
+	fallbackForm := url.Values{}
+	fallbackForm.Set("csrf_token", token)
+	fallbackForm.Set("user_id", targetUser.ID)
+	fallbackForm.Set("new_password", "FallbackPassword#789")
+
+	reqFallback := httptest.NewRequest("POST", "/admin/users", strings.NewReader(fallbackForm.Encode()))
+	reqFallback.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	reqFallback.AddCookie(csrfCookie)
+	reqFallback.AddCookie(&http.Cookie{
+		Name:  session.SessionCookieName,
+		Value: adminToken,
+	})
+	recFallback := httptest.NewRecorder()
+	handler.ServeHTTP(recFallback, reqFallback)
+
+	if recFallback.Code != http.StatusFound {
+		t.Fatalf("Expected 302 redirect after fallback reset password, got %d", recFallback.Code)
+	}
+
+	updatedTarget2, _ := userRepo.GetByID(context.Background(), targetUser.ID)
+	if !auth.CheckPassword(updatedTarget2.PasswordHash, "FallbackPassword#789") {
+		t.Errorf("Fallback new password verification failed")
+	}
+}
+

@@ -316,4 +316,68 @@
     </form>
   </div>
 </div>
+
+<script>
+// Modal & User Management Form Helpers
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.add('active');
+    const input = el.querySelector('input:not([type="hidden"])');
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('active');
+}
+function openEditUserModal(id, username, isAdmin, isActive) {
+  const form = document.getElementById('editUserForm');
+  if (form) form.action = '/admin/users/' + id + '/edit';
+  const idEl = document.getElementById('editUserId');
+  if (idEl) idEl.value = id;
+  const uEl = document.getElementById('editUsername');
+  if (uEl) uEl.value = username;
+  const adminEl = document.getElementById('editIsAdmin');
+  if (adminEl) adminEl.checked = (isAdmin === true || isAdmin === 'true');
+  const activeEl = document.getElementById('editIsActive');
+  if (activeEl) activeEl.checked = (isActive === true || isActive === 'true');
+  openModal('editUserModal');
+}
+function openResetPasswordModal(id, username) {
+  const form = document.getElementById('resetPasswordForm');
+  if (form) form.action = '/admin/users/' + id + '/reset-password';
+  const idEl = document.getElementById('resetPasswordUserId');
+  if (idEl) idEl.value = id;
+  const targetEl = document.getElementById('resetPasswordUsernameTarget');
+  if (targetEl) targetEl.textContent = username;
+  const pwdEl = document.getElementById('resetNewPassword');
+  if (pwdEl) pwdEl.value = '';
+  openModal('resetPasswordModal');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) backdrop.classList.remove('active');
+    });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-backdrop.active').forEach(b => b.classList.remove('active'));
+    }
+  });
+  document.getElementById('resetPasswordForm')?.addEventListener('submit', function() {
+    const uid = document.getElementById('resetPasswordUserId')?.value;
+    if (uid && (!this.action || this.action.endsWith('/admin/users') || this.action === window.location.href)) {
+      this.action = '/admin/users/' + uid + '/reset-password';
+    }
+  });
+  document.getElementById('editUserForm')?.addEventListener('submit', function() {
+    const uid = document.getElementById('editUserId')?.value;
+    if (uid && (!this.action || this.action.endsWith('/admin/users') || this.action === window.location.href)) {
+      this.action = '/admin/users/' + uid + '/edit';
+    }
+  });
+});
+</script>
 {{ end }}

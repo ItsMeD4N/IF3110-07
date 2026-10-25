@@ -1,6 +1,7 @@
 package view
 
 import (
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -188,6 +189,15 @@ func SetFlashSuccess(w http.ResponseWriter, message string) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   60,
 	})
+	val := base64.RawURLEncoding.EncodeToString([]byte("ok\x00" + message))
+	http.SetCookie(w, &http.Cookie{
+		Name:     "flash",
+		Value:    val,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   60,
+	})
 }
 
 // SetFlashError memasang flash message error pada cookie
@@ -195,6 +205,15 @@ func SetFlashError(w http.ResponseWriter, message string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "flash_error",
 		Value:    url.QueryEscape(message),
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   60,
+	})
+	val := base64.RawURLEncoding.EncodeToString([]byte("error\x00" + message))
+	http.SetCookie(w, &http.Cookie{
+		Name:     "flash",
+		Value:    val,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,

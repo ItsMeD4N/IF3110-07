@@ -173,6 +173,17 @@ func (h *Handler) handleAdminUsersPage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleWebCreateUser(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
+
+	// Fallback jika form reset-password atau edit tersubmit ke /admin/users
+	if r.FormValue("new_password") != "" && (r.FormValue("user_id") != "" || r.PathValue("id") != "") {
+		h.handleWebResetPassword(w, r)
+		return
+	}
+	if r.FormValue("user_id") != "" && r.FormValue("username") != "" && r.FormValue("password") == "" {
+		h.handleWebEditUser(w, r)
+		return
+	}
+
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := r.FormValue("password")
 	isAdmin := r.FormValue("is_platform_admin") == "true" || r.FormValue("is_platform_admin") == "1"
@@ -212,8 +223,12 @@ func (h *Handler) handleWebCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleWebEditUser(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
 	_ = r.ParseForm()
+	id := r.PathValue("id")
+	if id == "" {
+		id = r.FormValue("user_id")
+	}
+
 	username := strings.TrimSpace(r.FormValue("username"))
 	isAdmin := r.FormValue("is_platform_admin") == "true" || r.FormValue("is_platform_admin") == "1"
 	isActive := r.FormValue("is_active") == "true" || r.FormValue("is_active") == "1"
@@ -258,8 +273,11 @@ func (h *Handler) handleWebEditUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleWebResetPassword(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
 	_ = r.ParseForm()
+	id := r.PathValue("id")
+	if id == "" {
+		id = r.FormValue("user_id")
+	}
 	newPassword := r.FormValue("new_password")
 
 	if len(newPassword) < 8 {
@@ -289,7 +307,11 @@ func (h *Handler) handleWebResetPassword(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) handleWebRevokeSessions(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
 	id := r.PathValue("id")
+	if id == "" {
+		id = r.FormValue("user_id")
+	}
 
 	if err := h.sessionMgr.RevokeAllForUser(r.Context(), id); err != nil {
 		view.SetFlashError(w, "Gagal mencabut sesi pengguna")
@@ -302,7 +324,11 @@ func (h *Handler) handleWebRevokeSessions(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleWebDeleteUser(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
 	id := r.PathValue("id")
+	if id == "" {
+		id = r.FormValue("user_id")
+	}
 	currentUser := auth.CurrentUser(r.Context())
 
 	if currentUser != nil && currentUser.ID == id {

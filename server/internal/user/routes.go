@@ -312,6 +312,9 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	} else {
 		_ = r.ParseForm()
 		req.NewPassword = r.FormValue("new_password")
+		if id == "" {
+			id = r.FormValue("user_id")
+		}
 	}
 
 	if len(req.NewPassword) < 8 {
