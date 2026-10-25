@@ -49,6 +49,7 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux) {
 	}
 	mux.Handle("GET /api/databases/{dbID}/migrations", db(authz.PermDBViewMigrations, m.apiHistory))
 	mux.Handle("POST /api/databases/{dbID}/migrations", db(authz.PermDBExecuteMigration, m.apiExecute))
+	mux.Handle("POST /api/databases/{dbID}/migrations/explain", db(authz.PermDBViewMigrations, m.apiExplain))
 	if m.Views != nil {
 		mux.Handle("GET /databases/{dbID}/migrations", db(authz.PermDBViewMigrations, m.pageEditor))
 		mux.Handle("GET /databases/{dbID}/migrations/history", db(authz.PermDBViewMigrations, m.pageHistory))
