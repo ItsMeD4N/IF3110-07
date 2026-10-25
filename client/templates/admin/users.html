@@ -1,4 +1,6 @@
+{{define "title"}}Manajemen Pengguna{{end}}
 {{ define "content" }}
+
 <div class="page-header">
   <div>
     <h1 class="page-title">Manajemen Pengguna</h1>
@@ -185,7 +187,7 @@
     </div>
 
     <form method="POST" action="/admin/users">
-      <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+      <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
 
       <div class="form-group">
         <label for="addUsername" class="form-label">Username</label>
@@ -239,7 +241,7 @@
     </div>
 
     <form method="POST" action="" id="editUserForm">
-      <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+      <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
       <input type="hidden" name="user_id" id="editUserId">
 
       <div class="form-group">
@@ -287,7 +289,7 @@
     </div>
 
     <form method="POST" action="" id="resetPasswordForm">
-      <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+      <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
       <input type="hidden" name="user_id" id="resetPasswordUserId">
 
       <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.25rem;">

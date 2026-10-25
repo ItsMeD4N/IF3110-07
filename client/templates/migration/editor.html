@@ -2,21 +2,394 @@
 {{define "content"}}
 {{$id := .Data.DatabaseID}}
 <header class="page-header">
-  <div><p class="crumb"><a href="/databases/{{$id}}">Database</a> / SQL Migration</p><h1>SQL Migration</h1><p class="muted">Tinjau SQL sebelum menjalankan. Setiap eksekusi dicatat dalam history.</p></div>
+  <div>
+    <p class="crumb"><a href="/databases/{{$id}}">Database</a> / SQL Migration</p>
+    <h1>SQL Migration</h1>
+    <p class="muted">Tinjau query dan analisis execution plan sebelum mengeksekusi migrasi.</p>
+  </div>
   <a class="btn btn-secondary" href="/databases/{{$id}}/migrations/history">Lihat history</a>
 </header>
+
 {{if .Data.Error}}<div class="alert alert-error" role="alert">{{.Data.Error}}</div>{{end}}
+
 <section class="card">
-  {{if .Data.CanEdit}}
-  <form method="post" action="/databases/{{$id}}/migrations">
+  <form id="migrationForm" method="post" action="/databases/{{$id}}/migrations">
     {{.CSRFField}}
-    <label for="sql">SQL migration</label>
-    <textarea id="sql" name="sql" rows="16" spellcheck="false" required placeholder="ALTER TABLE ...;">{{.Data.SQL}}</textarea>
-    <p class="muted small">SQL dijalankan dalam satu transaksi. Jika gagal, perubahan transaksi di-rollback. Maksimal 1 MiB.</p>
-    <button class="btn btn-primary" type="submit" onclick="return confirm('Jalankan SQL migration ini pada database target? Pastikan SQL sudah ditinjau.')">Jalankan migration</button>
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+      <label for="sql" style="font-weight: 600;">SQL Statement</label>
+      <span class="muted small">Maksimal 1 MiB</span>
+    </div>
+    <textarea id="sql" name="sql" rows="12" spellcheck="false" required placeholder="Contoh Query DML / Analisis:
+SELECT u.username, g.name 
+FROM users u 
+JOIN group_members gm ON u.id = gm.user_id 
+JOIN user_groups g ON gm.group_id = g.id;
+
+-- atau DML:
+INSERT INTO users (username, password_hash) VALUES ('new_user', 'hash');">{{.Data.SQL}}</textarea>
+
+    <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem; flex-wrap: wrap;">
+      {{if .Data.CanEdit}}
+      <button class="btn btn-primary" type="submit" onclick="return confirm('Jalankan SQL migration ini pada database target? Pastikan SQL sudah ditinjau.')">
+        Jalankan migration
+      </button>
+      {{end}}
+      <button class="btn btn-secondary" id="btnExplain" type="button">
+        🔍 Analisis Execution Plan (EXPLAIN)
+      </button>
+      <label style="display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: var(--muted); cursor: pointer; user-select: none;">
+        <input type="checkbox" id="chkAnalyze" checked>
+        <span>Sertakan <strong>ANALYZE</strong> (Ukur waktu nyata &amp; row aktual via Safe Rollback)</span>
+      </label>
+    </div>
+    {{if not .Data.CanEdit}}
+    <p class="muted small" style="margin-top: 0.75rem;">Akses Anda View Only. Anda dapat menganalisis query execution plan dengan EXPLAIN, namun eksekusi migrasi dinonaktifkan.</p>
+    {{end}}
   </form>
-  {{else}}
-  <p>Akses Anda View Only. Anda dapat melihat history, tetapi tidak dapat membuat atau menjalankan migration.</p>
-  {{end}}
 </section>
+
+<!-- Panel Hasil Analisis Execution Plan -->
+<section class="card" id="explainPanel" style="display: none; margin-top: 1.5rem;">
+  <div class="page-header" style="margin-bottom: 1rem;">
+    <div>
+      <h2 style="font-size: 1.25rem;">Hasil Analisis Execution Plan</h2>
+      <p class="muted small" id="explainSubtext">Informasi scan type, index, join strategy, cost, dan performa database.</p>
+    </div>
+    <span class="badge" id="explainBadge">EXPLAIN</span>
+  </div>
+
+  <div id="explainStatus" style="display: none; padding: 0.85rem 1rem; border-radius: var(--radius); margin-bottom: 1rem; font-size: 0.9rem;"></div>
+
+  <div id="explainResultsContainer"></div>
+</section>
+
+<style>
+.plan-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.plan-metric-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.plan-metric-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+.plan-metric-val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.plan-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+.pill-seq { background: #fee2e2; color: #991b1b; }
+.pill-idx { background: #dcfce7; color: #166534; }
+.pill-join { background: #e0e7ff; color: #3730a3; }
+.pill-neutral { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.plan-node-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+.plan-node-box.seq-scan {
+  border-left-color: #ef4444;
+}
+.plan-node-box.index-scan {
+  border-left-color: #22c55e;
+}
+.plan-tree-children {
+  margin-left: 20px;
+  padding-left: 12px;
+  border-left: 1px dashed var(--border);
+}
+.plan-warning-box {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-left: 4px solid #f59e0b;
+  color: #92400e;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+  font-size: 0.88rem;
+}
+@media (prefers-color-scheme: dark) {
+  .pill-seq { background: #450a0a; color: #fca5a5; }
+  .pill-idx { background: #052e16; color: #86efac; }
+  .pill-join { background: #1e1b4b; color: #a5b4fc; }
+  .plan-warning-box { background: #3b2a09; border-color: #553c0e; color: #fde68a; }
+}
+</style>
+
+<script>
+(() => {
+  const dbID = {{.Data.DatabaseID}};
+  const sqlArea = document.getElementById('sql');
+  const btnExplain = document.getElementById('btnExplain');
+  const chkAnalyze = document.getElementById('chkAnalyze');
+  const panel = document.getElementById('explainPanel');
+  const status = document.getElementById('explainStatus');
+  const container = document.getElementById('explainResultsContainer');
+  const badge = document.getElementById('explainBadge');
+
+  btnExplain.addEventListener('click', async () => {
+    const sqlText = sqlArea.value.trim();
+    if (!sqlText) {
+      alert('Silakan masukkan query SQL terlebih dahulu untuk dianalisis.');
+      sqlArea.focus();
+      return;
+    }
+
+    panel.style.display = 'block';
+    status.style.display = 'block';
+    status.style.background = 'var(--surface-2)';
+    status.style.color = 'var(--text)';
+    status.innerHTML = '⏳ Menjalankan analisis Query Execution Plan pada database target...';
+    container.innerHTML = '';
+    btnExplain.disabled = true;
+
+    const analyze = chkAnalyze.checked;
+    badge.textContent = analyze ? 'EXPLAIN ANALYZE (Safe Rollback)' : 'EXPLAIN (Estimasi Saja)';
+    badge.className = 'badge ' + (analyze ? 'badge-warn' : 'badge-neutral');
+
+    try {
+      // Ambil CSRF token dari form
+      let csrfToken = '';
+      const csrfInput = document.querySelector('input[name="csrf_token"]');
+      if (csrfInput) csrfToken = csrfInput.value;
+
+      const res = await fetch(`/api/databases/${dbID}/migrations/explain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({
+          sql: sqlText,
+          analyze: analyze
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || data.message || 'Gagal menjalankan EXPLAIN');
+      }
+
+      status.style.display = 'none';
+      renderResults(data.results, analyze);
+    } catch (err) {
+      status.style.display = 'block';
+      status.style.background = 'var(--danger-soft, #fee2e2)';
+      status.style.color = 'var(--danger, #991b1b)';
+      status.textContent = '❌ ' + err.message;
+    } finally {
+      btnExplain.disabled = false;
+    }
+  });
+
+  function renderResults(results, isAnalyze) {
+    if (!results || results.length === 0) {
+      container.innerHTML = '<p class="muted">Tidak ada hasil query yang dapat dianalisis.</p>';
+      return;
+    }
+
+    results.forEach((r, idx) => {
+      const qCard = document.createElement('div');
+      qCard.style.marginBottom = '24px';
+      qCard.style.paddingBottom = '16px';
+      qCard.style.borderBottom = idx < results.length - 1 ? '1px solid var(--border)' : 'none';
+
+      // Header per statement
+      const title = document.createElement('h3');
+      title.style.fontSize = '1.05rem';
+      title.style.margin = '0 0 8px 0';
+      title.textContent = `Statement #${idx + 1}`;
+      qCard.appendChild(title);
+
+      const sqlSnippet = document.createElement('pre');
+      sqlSnippet.style.background = 'var(--surface-2)';
+      sqlSnippet.style.padding = '8px 12px';
+      sqlSnippet.style.borderRadius = '6px';
+      sqlSnippet.style.fontSize = '0.85rem';
+      sqlSnippet.style.overflowX = 'auto';
+      sqlSnippet.textContent = r.statement;
+      qCard.appendChild(sqlSnippet);
+
+      if (!r.is_explainable) {
+        const noteBox = document.createElement('div');
+        noteBox.className = 'plan-warning-box';
+        noteBox.style.background = 'var(--surface-2)';
+        noteBox.style.borderLeftColor = 'var(--muted)';
+        noteBox.style.color = 'var(--text)';
+        noteBox.textContent = 'ℹ️ ' + (r.note || 'Pernyataan ini tidak menghasilkan execution plan.');
+        qCard.appendChild(noteBox);
+        container.appendChild(qCard);
+        return;
+      }
+
+      const s = r.summary;
+
+      // Peringatan optimasi jika ada
+      if (s.warnings && s.warnings.length > 0) {
+        s.warnings.forEach(w => {
+          const warn = document.createElement('div');
+          warn.className = 'plan-warning-box';
+          warn.innerHTML = `⚠️ <strong>Catatan Optimasi:</strong> ${escapeHtml(w)}`;
+          qCard.appendChild(warn);
+        });
+      }
+
+      // Metric Grid
+      const grid = document.createElement('div');
+      grid.className = 'plan-summary-grid';
+
+      // 1. Jenis Scan
+      const cardScan = createMetricCard('Jenis Scan', '');
+      const scanVal = cardScan.querySelector('.plan-metric-val');
+      if (s.scan_types && s.scan_types.length > 0) {
+        scanVal.innerHTML = s.scan_types.map(t => {
+          const cls = t === 'Seq Scan' ? 'pill-seq' : 'pill-idx';
+          return `<span class="plan-pill ${cls}">${escapeHtml(t)}</span>`;
+        }).join('');
+      } else {
+        scanVal.innerHTML = '<span class="muted small">Tidak ada scan tabel</span>';
+      }
+      grid.appendChild(cardScan);
+
+      // 2. Penggunaan Index
+      const cardIdx = createMetricCard('Index Digunakan', '');
+      const idxVal = cardIdx.querySelector('.plan-metric-val');
+      if (s.indexes_used && s.indexes_used.length > 0) {
+        idxVal.innerHTML = s.indexes_used.map(ix => `<span class="plan-pill pill-idx">${escapeHtml(ix)}</span>`).join('');
+      } else {
+        idxVal.innerHTML = '<span class="muted small">Tanpa Index (Full Scan / Virtual)</span>';
+      }
+      grid.appendChild(cardIdx);
+
+      // 3. Join Strategy
+      const cardJoin = createMetricCard('Join Strategy', '');
+      const joinVal = cardJoin.querySelector('.plan-metric-val');
+      if (s.join_strategies && s.join_strategies.length > 0) {
+        joinVal.innerHTML = s.join_strategies.map(j => `<span class="plan-pill pill-join">${escapeHtml(j)}</span>`).join('');
+      } else {
+        joinVal.innerHTML = '<span class="muted small">Single Table / Tanpa Join</span>';
+      }
+      grid.appendChild(cardJoin);
+
+      // 4. Estimated Cost
+      const costText = `${s.startup_cost.toFixed(2)} .. ${s.total_cost.toFixed(2)}`;
+      grid.appendChild(createMetricCard('Estimated Cost', costText));
+
+      // 5. Actual Execution Time
+      if (isAnalyze && s.actual_time_ms !== undefined && s.actual_time_ms !== null) {
+        grid.appendChild(createMetricCard('Actual Execution Time', `${s.actual_time_ms.toFixed(3)} ms`));
+      } else {
+        grid.appendChild(createMetricCard('Actual Execution Time', 'Hanya di ANALYZE'));
+      }
+
+      // 6. Rows Processed
+      let rowText = `Plan: ${s.rows_planned}`;
+      if (isAnalyze && s.rows_processed !== undefined && s.rows_processed !== null) {
+        rowText += ` · Aktual: ${s.rows_processed}`;
+      }
+      grid.appendChild(createMetricCard('Jumlah Row', rowText));
+
+      qCard.appendChild(grid);
+
+      // Visual Plan Hierarchy Tree
+      if (r.root_node) {
+        const treeSection = document.createElement('div');
+        treeSection.style.marginTop = '16px';
+        treeSection.innerHTML = '<h4 style="font-size: 0.95rem; margin-bottom: 8px;">Pohon Execution Plan (Hierarki Node)</h4>';
+        const treeContainer = document.createElement('div');
+        renderNodeTree(r.root_node, treeContainer, isAnalyze);
+        treeSection.appendChild(treeContainer);
+        qCard.appendChild(treeSection);
+      }
+
+      // Raw Output Collapsible
+      if (r.raw_text) {
+        const details = document.createElement('details');
+        details.style.marginTop = '12px';
+        details.innerHTML = `<summary style="cursor: pointer; font-size: 0.85rem; color: var(--accent); font-weight: 600;">Lihat Output Mentah EXPLAIN (Format Teks)</summary>
+          <pre style="background: var(--surface-2); padding: 10px; border-radius: 6px; font-size: 0.8rem; overflow-x: auto; margin-top: 8px;">${escapeHtml(r.raw_text)}</pre>`;
+        qCard.appendChild(details);
+      }
+
+      container.appendChild(qCard);
+    });
+  }
+
+  function createMetricCard(label, val) {
+    const card = document.createElement('div');
+    card.className = 'plan-metric-card';
+    card.innerHTML = `<div class="plan-metric-label">${escapeHtml(label)}</div><div class="plan-metric-val">${val}</div>`;
+    return card;
+  }
+
+  function renderNodeTree(node, parentEl, isAnalyze) {
+    const box = document.createElement('div');
+    const isSeq = node.node_type === 'Seq Scan';
+    const isIdx = node.node_type.includes('Index');
+    box.className = 'plan-node-box ' + (isSeq ? 'seq-scan' : (isIdx ? 'index-scan' : ''));
+
+    let headerText = `<strong>${escapeHtml(node.node_type)}</strong>`;
+    if (node.relation_name) {
+      headerText += ` pada <code>${escapeHtml(node.relation_name)}</code>`;
+    }
+    if (node.index_name) {
+      headerText += ` menggunakan index <code>${escapeHtml(node.index_name)}</code>`;
+    }
+
+    let meta = `Biaya: ${node.startup_cost.toFixed(2)}..${node.total_cost.toFixed(2)} | Estimasi Baris: ${node.plan_rows}`;
+    if (isAnalyze && node.actual_total_time !== undefined && node.actual_total_time !== null) {
+      meta += ` | Waktu Aktual: ${node.actual_total_time.toFixed(3)} ms | Baris Aktual: ${node.actual_rows}`;
+    }
+
+    let conditions = '';
+    if (node.filter) {
+      conditions += `<div class="small muted" style="margin-top: 2px;">Filter: <code>${escapeHtml(node.filter)}</code></div>`;
+    }
+    if (node.index_cond) {
+      conditions += `<div class="small muted" style="margin-top: 2px;">Index Cond: <code>${escapeHtml(node.index_cond)}</code></div>`;
+    }
+    if (node.hash_cond) {
+      conditions += `<div class="small muted" style="margin-top: 2px;">Hash Cond: <code>${escapeHtml(node.hash_cond)}</code></div>`;
+    }
+
+    box.innerHTML = `<div>${headerText}</div><div class="small muted">${meta}</div>${conditions}`;
+    parentEl.appendChild(box);
+
+    if (node.plans && node.plans.length > 0) {
+      const childrenWrapper = document.createElement('div');
+      childrenWrapper.className = 'plan-tree-children';
+      node.plans.forEach(child => renderNodeTree(child, childrenWrapper, isAnalyze));
+      parentEl.appendChild(childrenWrapper);
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+})();
+</script>
 {{end}}

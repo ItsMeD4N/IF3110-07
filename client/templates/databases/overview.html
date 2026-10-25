@@ -7,9 +7,20 @@
     <h1>{{$d.Name}}</h1>
     <p class="mono muted">{{$d.DatabaseName}}</p>
   </div>
-  <span class="badge badge-{{$d.Level.String}}">{{$d.Level.Label}}</span>
+  <div style="display: flex; gap: 0.5rem; align-items: center;">
+    <a class="btn btn-primary" href="/databases/{{$d.ID}}/viewer">Buka Viewer</a>
+    <span class="badge badge-{{$d.Level.String}}">{{$d.Level.Label}}</span>
+  </div>
 </header>
 {{if $d.Description}}<p>{{$d.Description}}</p>{{end}}
+<section class="card">
+  <h2>Aksi Database</h2>
+  <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem;">
+    <a class="btn btn-primary" href="/databases/{{$d.ID}}/viewer">Schema &amp; Data Viewer</a>
+    <a class="btn btn-secondary" href="/databases/{{$d.ID}}/migrations">SQL Migration Editor</a>
+    <a class="btn btn-secondary" href="/databases/{{$d.ID}}/migrations/history">Riwayat Migration</a>
+  </div>
+</section>
 <section class="card">
   <h2>Izin Anda pada database ini</h2>
   <ul class="perm-list">

@@ -15,6 +15,7 @@
       <a class="nav-link{{if hasPrefix $.Path "/databases"}} active{{end}}" href="/databases">Database saya</a>
       {{if .IsPlatformAdmin}}
       <div class="nav-section">Platform Admin</div>
+      <a class="nav-link{{if hasPrefix $.Path "/admin/users"}} active{{end}}" href="/admin/users">Manajemen pengguna</a>
       <a class="nav-link{{if hasPrefix $.Path "/admin/groups"}} active{{end}}" href="/admin/groups">Group &amp; akses</a>
       <a class="nav-link{{if hasPrefix $.Path "/admin/connections"}} active{{end}}" href="/admin/connections">Koneksi database</a>
       {{end}}
