@@ -32,7 +32,7 @@
       <input type="hidden" name="is_platform_admin" value="on">
       <input type="hidden" name="is_active" value="on">
       {{end}}
-      <p class="muted small">Menonaktifkan akun atau mengubah status admin akan mengakhiri semua sesi user ini.</p>
+      <p class="muted small">Kalau akun dinonaktifkan atau status admin diubah, user ini otomatis logout.</p>
       <div class="form-actions"><button class="btn btn-primary" type="submit">Simpan</button></div>
     </form>
   </section>
@@ -49,7 +49,7 @@
     <form method="post" action="/admin/users/{{$u.ID}}/revoke-sessions" class="form"
           onsubmit="return confirm('Akhiri semua sesi {{$u.Username}}? User harus login ulang.')">
       {{$csrf}}
-      <p class="muted small">Memaksa user logout dari semua perangkat.</p>
+      <p class="muted small">User akan logout dari semua perangkat.</p>
       <div class="form-actions"><button class="btn btn-danger-ghost" type="submit">Akhiri semua sesi</button></div>
     </form>
   </section>

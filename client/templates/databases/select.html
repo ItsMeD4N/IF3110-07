@@ -4,7 +4,7 @@
 <header class="page-header">
   <div>
     <h1>Pilih database</h1>
-    <p class="muted">Hanya database yang dapat Anda akses melalui group yang ditampilkan.</p>
+    <p class="muted">Database yang bisa kamu akses lewat group.</p>
   </div>
 </header>
 {{if .Data.Databases}}
@@ -22,7 +22,7 @@
       <li class="cap-on">Lihat riwayat migration</li>
       <li class="{{if eq .AccessLevel.String "view_edit"}}cap-on{{else}}cap-off{{end}}">Buat &amp; jalankan migration</li>
     </ul>
-    <div class="muted small">Melalui group: {{join .ViaGroups ", "}}</div>
+    <div class="muted small">Lewat group: {{join .ViaGroups ", "}}</div>
     <form method="post" action="/databases/{{.ID}}/open">
       {{$csrf}}<button class="btn btn-primary btn-block" type="submit">Buka</button>
     </form>
@@ -31,8 +31,8 @@
 </div>
 {{else}}
 <div class="empty">
-  Anda belum memiliki akses ke database mana pun. Minta Platform Admin menambahkan Anda ke group yang memiliki akses.
-  {{if .Data.IsAdmin}}<br><span class="small">Sebagai Platform Admin, Anda tetap perlu menjadi anggota group yang diberi akses — <a href="/admin/groups">kelola group</a>.</span>{{end}}
+  Kamu belum punya akses ke database apa pun. Minta Platform Admin memasukkan kamu ke group yang punya akses.
+  {{if .Data.IsAdmin}}<br><span class="small">Admin juga perlu masuk ke group yang punya akses dulu. <a href="/admin/groups">Atur group</a>.</span>{{end}}
 </div>
 {{end}}
 {{end}}

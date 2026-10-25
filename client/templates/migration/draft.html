@@ -39,7 +39,7 @@
 {{if .Data.CanRun}}
 <section class="card">
   <h2>Jalankan</h2>
-  <p class="muted small">Yang dijalankan adalah versi draft yang sudah tersimpan. Simpan perubahan dulu sebelum menjalankan. Jika berhasil, draft dipindahkan ke riwayat; jika gagal, semua perubahan di-rollback dan draft tetap ada.</p>
+  <p class="muted small">Yang dijalankan versi yang sudah disimpan, jadi simpan dulu kalau ada perubahan. Kalau berhasil, draft pindah ke riwayat. Kalau gagal, semuanya di-rollback dan draft-nya tetap ada.</p>
   <form method="post" action="/databases/{{$id}}/migrations/drafts/{{$d.ID}}/run"
         onsubmit="return confirm('Jalankan draft ini pada database target?')">
     {{$csrf}}<button class="btn btn-primary" type="submit">Jalankan migration</button>

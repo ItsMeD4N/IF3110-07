@@ -10,7 +10,7 @@
   </div>
   <span class="badge badge-{{$m.Status}}">{{$m.Status}}</span>
 </header>
-{{if $m.Error}}<div class="alert alert-error" role="alert">Gagal, semua perubahan di-rollback: {{$m.Error}}</div>{{end}}
+{{if $m.Error}}<div class="alert alert-error" role="alert">Gagal dan sudah di-rollback: {{$m.Error}}</div>{{end}}
 <section class="card">
   <h2>SQL</h2>
   <pre class="sql">{{$m.SQL}}</pre>

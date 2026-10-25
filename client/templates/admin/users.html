@@ -31,7 +31,7 @@
     <tbody>
     {{if .Data}}{{range .Data.Users}}
       <tr>
-        <td><a class="strong" href="/admin/users/{{.ID}}">{{.Username}}</a>{{if and $.User (eq .ID $.User.ID)}} <span class="muted small">(Anda)</span>{{end}}</td>
+        <td><a class="strong" href="/admin/users/{{.ID}}">{{.Username}}</a>{{if and $.User (eq .ID $.User.ID)}} <span class="muted small">(kamu)</span>{{end}}</td>
         <td>{{if .IsPlatformAdmin}}Platform Admin{{else}}User{{end}}</td>
         <td>{{if .IsActive}}<span class="text-ok">Aktif</span>{{else}}<span class="tag tag-muted">nonaktif</span>{{end}}</td>
         <td class="muted">{{formatDate .CreatedAt}}</td>

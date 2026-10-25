@@ -1,212 +1,122 @@
-# Database Management Platform (DB Platform)
-> **Tugas Besar IF3110 Pengembangan Aplikasi Web 2026 — Milestone 1**  
-> **Kelompok IF3110-07**
+# IF3110-07 Database Management Platform
 
-Platform manajemen database terpusat berbasis web untuk mengelola akses multi-pengguna, mengintrospeksi struktur dan data tabel, serta menjalankan migrasi skema database secara terkontrol dengan jaminan transaksi atomik (*commit/rollback*). Dilengkapi dengan fitur analisis rencana eksekusi query (*Query Execution Plan Analysis* menggunakan `EXPLAIN` dan `EXPLAIN ANALYZE`).
+Tugas Besar IF3110 Pengembangan Aplikasi Web 2026, Milestone 1.
 
----
+Aplikasi web buat ngatur akses ke database PostgreSQL yang dipakai bareng. Admin mengatur user, group, dan koneksi database. User bisa lihat schema dan data, lalu bikin dan jalankan migration sesuai hak aksesnya. Semua migration jalan di dalam transaksi dan tercatat di riwayat.
 
-## Anggota Kelompok & Pembagian Tugas
+## Anggota
 
-| No | Nama | NIM | Lingkup Tanggung Jawab |  
-| :---: | :--- | :---: | :---: |
-| 1 | Yavie Azka Putra Araly | *13524077* | **Authorization & Admin Console, Bonus (Query Execution Plan Analysis)** |  
-| 2 | Rainaldi Pratama F Sembiring | 13524117 | **Database Viewer, Migration** | 
-| 3 | Daniel Putra Rywandi S | 13524143 | **Identity, Session & Security Foundation** | 
+| Nama | NIM | Bagian |
+| --- | --- | --- |
+| Yavie Azka Putra Araly | 13524077 | Authorization, admin console, bonus EXPLAIN |
+| Rainaldi Pratama F Sembiring | 13524117 | Database viewer, migration |
+| Daniel Putra Rywandi S | 13524143 | Autentikasi, session, keamanan |
 
+## Stack
 
-## Arsitektur & Teknologi
+- Backend: Go 1.25 (`net/http`, `database/sql`, `lib/pq`)
+- Frontend: Go template (bukan SPA) dan sedikit JavaScript
+- Database: PostgreSQL 16 lewat Docker Compose
 
-```text
-┌────────────────────────────────────────────────────────┐
-│                   Browser Client                       │
-│    (HTML5, CSS3 Custom Theme, Vanilla JavaScript)      │
-└──────────────────────────┬─────────────────────────────┘
-                           │ HTTP / HTTPS (SSR & REST API)
-┌──────────────────────────▼─────────────────────────────┐
-│                 Server Backend (Go 1.22+)              │
-│                                                        │
-│  Global Middleware:                                    │
-│   ├── Security Headers (CSP, X-Frame, X-Content-Type)  │
-│   ├── Double Submit Cookie Anti-CSRF Middleware        │
-│   ├── CORS Middleware & Request Logger                 │
-│   └── Authenticate & Context Injector (CurrentUser)    │
-│                                                        │
-│  Modul Aplikasi:                                       │
-│   ├── internal/auth     -> Autentikasi Bcrypt          │
-│   ├── internal/session  -> Session Lifecycle Manager   │
-│   ├── internal/authz    -> RBAC Permission Engine      │
-│   ├── internal/admin    -> Group, Connection, Crypto   │
-│   ├── internal/dbmanager-> Schema & Table Viewer       │
-│   └── internal/migration-> Migration & EXPLAIN Runner  │
-└────────────┬─────────────────────────────┬─────────────┘
-             │                             │
-┌────────────▼─────────────┐ ┌─────────────▼─────────────┐
-│   PostgreSQL (Port 5433) │ │   Target Database (DB)    │
-│    Metadata Platform DB  │ │   Koneksi Kelolaan User   │
-└──────────────────────────┘ └───────────────────────────┘
-```
+## Cara menjalankan
 
-- **Backend**: Go (Golang) 1.22+ menggunakan standar pustaka `net/http` router terbaru, `database/sql`, dan driver PostgreSQL `github.com/lib/pq`.
-- **Frontend**: Server-Side Rendered (SSR) Go HTML Templates dipadukan dengan vanilla JavaScript dan sistem desain CSS modern (dark slate & glassmorphism).
-- **Keamanan**: `golang.org/x/crypto/bcrypt`, `golang.org/x/crypto/nacl/secretbox`.
-- **Database**: PostgreSQL 16 (diorkestrasi melalui Docker Compose).
+Butuh Go 1.25+, Docker, dan Git.
 
----
-
-## Parameter Konfigurasi & Keamanan
-
-Sesuai spesifikasi teknis Milestone 1, sistem mengonfigurasi parameter sesi dan keamanan sebagai berikut:
-
-| Parameter | Nilai Konfigurasi | Deskripsi / Penjelasan |
-| :--- | :---: | :--- |
-| **Idle Timeout** | `30 Menit` | Sesi otomatis tidak valid jika tidak ada interaksi pengguna selama 30 menit. |
-| **Absolute Expiration** | `12 Jam` | Batas hidup mutlak sesi sejak login pertama kali (sesi hangus meski pengguna terus aktif). |
-| **Session Rotation Interval** | `15 Menit` | Token opaque diganti secara berkala setiap 15 menit tanpa mereset batas 12 jam. |
-| **Rotation Grace Period** | `60 Detik` | Token lama tetap diterima selama 60 detik pasca rotasi untuk menghindari race condition. |
-| **Token Entropy** | `32 Bytes (256-bit)` | Dibuat menggunakan `crypto/rand` berkekuatan kriptografi. |
-| **Session Storage Hashing** | `SHA-256` | Hanya digest SHA-256 yang tersimpan di DB metadata; token asli hanya ada di cookie client. |
-| **Cookie Attributes** | `HttpOnly, SameSite=Lax` | Mencegah pembacaan cookie sesi via XSS dan eksfiltrasi lintas situs. |
-| **Password Hashing** | `Bcrypt Cost 12` | Standar keamanan tinggi terhadap brute-force dan rainbow table. |
-| **Kredensial Koneksi Target** | `NaCl Secretbox` | Password database target dienkripsi menggunakan authenticated symmetric cipher. |
-
----
-
-## Panduan Menjalankan Aplikasi
-
-### 1. Prasyarat
-- **Go**: Versi 1.22 atau lebih baru.
-- **Docker & Docker Compose**: Untuk menjalankan instance PostgreSQL platform.
-- **Git**
-
-### 2. Persiapan Database Platform
-Jalankan container PostgreSQL platform melalui docker compose:
-```powershell
+```bash
 docker compose up -d
-```
-Container database akan aktif di port host `5433` dengan database `platform_db`.
-
-### 3. Migrasi Skema Database
-Migrasi skema database dieksekusi secara otomatis saat server pertama kali dijalankan, atau dapat diinjeksi manual:
-```powershell
-docker exec -i if3110_postgres psql -U postgres -d platform_db < server/migrations/001_orang_a_users_sessions.sql
-docker exec -i if3110_postgres psql -U postgres -d platform_db < server/migrations/002_orang_b_groups_connections.sql
-docker exec -i if3110_postgres psql -U postgres -d platform_db < server/migrations/003_orang_c_migrations.sql
-```
-
-### 4. Menjalankan Server Backend & Web
-Buka terminal dan masuk ke direktori `server`:
-```powershell
 cd server
-go run main.go
+go run .
 ```
-Server akan aktif di: **`http://localhost:8080`**
 
-### 5. Akun Awal (Default Seeding)
-Aplikasi telah dilengkapi dengan akun bawaan untuk pengujian awal:
-- **Username**: `admin`
-- **Password**: `Admin#Password123`
-- **Peran**: `Platform Admin`
+Buka `http://localhost:8080` lalu login pakai akun admin bawaan: `admin` / `Admin#Password123`.
 
----
+Skema database platform dibuat otomatis waktu server start. Docker Compose juga menyiapkan database contoh `sample_db` (user dan password `sample_app`) yang bisa ditambahkan sebagai koneksi dari halaman admin.
 
-## Panduan Menjalankan Automated Tests
+Kalau mau isi user dan group contoh, jalankan `go run ./cmd/devseed` dari folder `server`. Password user contohnya muncul di akhir output.
 
-Seluruh modul telah dilengkapi pengujian otomatis (*unit test*, *integration test*, dan *E2E live smoketest*).
+Environment variable yang dipakai:
 
-> **Tips Windows PowerShell**: Sertakan `$env:TMP='D:\tmp'` dan `-p 1` untuk menjamin stabilitas memori compiler pada lingkungan Windows.
+| Variabel | Default | Keterangan |
+| --- | --- | --- |
+| `PORT` | `8080` | Port server |
+| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable` | Database platform |
+| `APP_ENV` | `development` | Isi `production` supaya cookie pakai `Secure` |
+| `APP_ENCRYPTION_KEY` | kunci development | Kunci enkripsi password koneksi, wajib diisi di production (`openssl rand -base64 32`) |
 
-### 1. Menjalankan Seluruh Unit & Integration Test
-```powershell
+## Session
+
+| Pengaturan | Nilai |
+| --- | --- |
+| Idle timeout | 30 menit |
+| Absolute expiration | 12 jam sejak login |
+| Rotasi session ID | Tiap 15 menit, saat login, dan saat hak akses berubah |
+| Grace period ID lama | 60 detik |
+
+Beberapa catatan:
+
+- Rotasi tidak memperpanjang absolute expiration.
+- Session ID berupa token acak 32 byte, dan yang disimpan di database cuma hash SHA-256-nya.
+- Cookie pakai `HttpOnly` dan `SameSite=Lax`, plus `Secure` di production.
+- Password user di-hash pakai bcrypt, sedangkan password koneksi database dienkripsi pakai NaCl secretbox.
+- Request yang mengubah data harus bawa token CSRF (double submit cookie). Token ini dibuat ulang tiap kali login.
+- Logout dan penonaktifan user langsung mematikan session di backend.
+
+## Hak akses
+
+Akses database selalu lewat group, tidak pernah langsung ke user. Platform Admin mengurus user, group, koneksi, dan pemberian akses, tapi tidak otomatis punya akses ke database mana pun.
+
+- **View Only**: lihat schema, data, riwayat migration, dan draft. Bisa juga `EXPLAIN` tanpa `ANALYZE`, yang dijalankan di transaksi read-only.
+- **View + Edit**: semua akses View Only, ditambah bikin, ubah, dan jalankan migration, serta `EXPLAIN ANALYZE`.
+
+Kalau satu user ada di beberapa group yang punya akses ke database yang sama, yang dipakai level paling tinggi. Misalnya user ada di group A (View Only) dan group B (View + Edit) untuk database X, maka aksesnya ke X jadi View + Edit. Kodenya ada di `server/internal/authz/effective.go`.
+
+Hal lain yang perlu diketahui:
+
+- Kalau anggota group atau akses group berubah, session user yang kena dirotasi di request berikutnya.
+- Kalau user dinonaktifkan atau status admin-nya diubah, semua session-nya langsung dicabut.
+- Database yang tidak ada dan database yang tidak boleh diakses sama-sama dibalas 404.
+
+## Migration
+
+- SQL jalan dalam satu transaksi. Kalau ada statement yang gagal, semuanya di-rollback.
+- `BEGIN`/`COMMIT` di dalam SQL ditolak, karena transaksinya sudah diatur platform.
+- Nomor versi berurutan per database. Tiap record menyimpan SQL, siapa yang menjalankan, waktu, status, dan pesan error.
+- Ada advisory lock supaya dua migration tidak jalan barengan di database yang sama.
+- Kalau server mati di tengah migration, record yang masih `running` diubah jadi `failed` waktu server nyala lagi. Cek manual database target-nya untuk memastikan perubahannya sudah masuk atau belum.
+- Bonus: `EXPLAIN` / `EXPLAIN ANALYZE` menampilkan jenis scan, index, join, cost, waktu, dan jumlah row. Mode `ANALYZE` selalu di-rollback dan dibatasi 10 detik per statement.
+
+## Testing
+
+Unit test dan integration test butuh PostgreSQL yang sudah jalan (`docker compose up -d`):
+
+```bash
 cd server
-$env:TMP='D:\tmp'; $env:TEMP='D:\tmp'; $env:GOTMPDIR='D:\tmp'; $env:GOCACHE='D:\tmp\gocache'; go test -p 1 ./internal/...
+go test -p 1 ./...
 ```
 
-### 2. Menjalankan Test Spesifik Per Modul
-- **Modul Orang A (Identity & Session)**:
-  ```powershell
-  go test -v -p 1 ./internal/auth/... ./internal/session/... ./internal/user/... ./internal/csrf/... ./internal/web/...
-  ```
-- **Modul Orang B (Authorization & Connections)**:
-  ```powershell
-  go test -v -p 1 ./internal/authz/... ./internal/admin/... ./internal/connmgr/...
-  ```
-- **Modul Orang C (Viewer, Migration & EXPLAIN Bonus)**:
-  ```powershell
-  go test -v -p 1 ./internal/dbmanager/... ./internal/migration/...
-  ```
+Di Windows, kalau build-nya sering kehabisan memori, pindahkan folder temp ke drive lain dulu, misalnya `$env:TMP='D:\tmp'; $env:GOCACHE='D:\tmp\gocache'`.
 
-### 3. Menjalankan Skrip Live E2E Smoketest (Happy Path & 9 Edge Cases)
-Pastikan server sedang berjalan di `http://localhost:8080`, lalu jalankan:
-```powershell
+Ada juga smoketest end-to-end yang dites ke server yang lagi jalan. Jalankan `devseed` dulu sebelum menjalankannya:
+
+```bash
 go run ./cmd/smoketest
 ```
 
-Skrip ini akan menguji secara live:
-1. **Bagian I (Happy Path)**: Health check, CSRF exchange, Admin login, Introspeksi user, Target DB connection ping, Migration SQL runner, Introspeksi skema, dan Pembacaan data tabel.
-2. **Bagian II (9 Skenario Kasus Batas & Error)**:
-   - `[E1]` Login dengan password salah ditolak & cookie sesi tidak terbit.
-   - `[E2]` Request POST tanpa CSRF token ditolak HTTP 403.
-   - `[E3]` Request POST dengan CSRF token palsu/dimanipulasi ditolak HTTP 403.
-   - `[E4]` Pembatasan RBAC: User biasa ditolak HTTP 403 saat mengakses endpoint admin.
-   - `[E5]` Integritas Akun: Admin dilarang menonaktifkan akunnya sendiri (HTTP 400).
-   - `[E6]` Validasi input password lemah (< 8 karakter) ditolak HTTP 400.
-   - `[E7]` Modifikasi / tampering cookie sesi palsu ditolak HTTP 401.
-   - `[E8]` Atomic Rollback: Migrasi dengan sintaks SQL salah di-rollback 100% dan tabel parsial tidak tersimpan di database.
-   - `[E9]` Query Plan DDL: Penanganan graceful informatif pada EXPLAIN statement non-DML.
+Smoketest ini mengecek alur dari login sampai migration dan viewer. Selain itu juga mengecek beberapa kasus yang harus gagal: password salah, token CSRF kosong atau palsu, user biasa buka endpoint admin, cookie session palsu, rollback migration yang error, dan EXPLAIN untuk DDL.
 
----
+## Struktur folder
 
-## Struktur Direktori Proyek
-
-```text
-IF3110-07/
-├── client/                              # Kode & Aset Antarmuka (Frontend)
-│   ├── static/                          # Aset statis yang di-serve langsung oleh server Go
-│   │   ├── css/
-│   │   │   ├── app.css                  # Stylesheet terpadu (Modern Dark Theme & Layout)
-│   │   │   └── style.css                # Komponen CSS & tokens
-│   │   └── js/
-│   │       └── main.js                  # Skrip interaktif modal dialog & DOM helper
-│   └── templates/                       # Server-Side Rendered (SSR) Go HTML Templates
-│       ├── layouts/                     # Master layout (base.html, navbar, alerts)
-│       ├── auth/                        # Halaman autentikasi (login.html)
-│       ├── admin/                       # Halaman Platform Admin (users, groups, connections)
-│       ├── databases/                   # Dashboard database pengguna (overview.html)
-│       ├── dbmanager/                   # Introspeksi skema & data viewer (viewer.html)
-│       └── migration/                   # Migration SQL editor & EXPLAIN visualizer (editor.html)
-├── server/                              # Seluruh Kode Backend (Go 1.22+)
-│   ├── cmd/
-│   │   └── smoketest/
-│   │       └── main.go                  # Skrip automated test E2E live (Happy path & 9 Edge cases)
-│   ├── internal/
-│   │   ├── config/                      # Manajemen environment & konfigurasi server
-│   │   ├── database/                    # Connection pool platform metadata DB
-│   │   ├── auth/                        # [Orang A] Login, Bcrypt hashing, CurrentUser context
-│   │   ├── session/                     # [Orang A] Session store, rotasi, timeout, grace period
-│   │   ├── csrf/                        # [Orang A] Double submit cookie anti-CSRF protection
-│   │   ├── user/                        # [Orang A] REST API & CRUD akun Platform Admin
-│   │   ├── authz/                       # [Orang B] RBAC permission engine & middleware
-│   │   ├── admin/                       # [Orang B] Manajemen group, member, koneksi DB target
-│   │   ├── secretbox/                   # [Orang B] Enkripsi kredensial koneksi at-rest
-│   │   ├── connmgr/                     # [Orang B] Connection pool & ping tester DB target
-│   │   ├── dbmanager/                   # [Orang C] Introspeksi skema tabel & pembaca data
-│   │   ├── migration/                   # [Orang C] Transactional SQL migration & EXPLAIN runner
-│   │   ├── view/                        # Engine renderer HTML template & flash cookie
-│   │   └── web/                         # Handler web MPA & routing halaman HTML
-│   ├── migrations/                      # Skrip SQL migrasi database platform
-│   │   ├── 001_orang_a_users_sessions.sql
-│   │   ├── 002_orang_b_groups_connections.sql
-│   │   └── 003_orang_c_migrations.sql
-│   ├── go.mod                           # Modul dependensi Go
-│   ├── go.sum                           # Checksum dependensi Go
-│   └── main.go                          # Entry point aplikasi utama
-├── docs/                                # Dokumen spesifikasi tugas besar & panduan
-├── docker-compose.yml                   # Orkestrasi Docker container PostgreSQL platform
-└── README.md                            # Dokumentasi utama proyek
 ```
-
----
-
-## Lisensi & Integritas Akademik
-Proyek ini dikembangkan untuk memenuhi tugas besar mata kuliah **IF3110 Pengembangan Aplikasi Web 2026** di Institut Teknologi Bandung. Seluruh kode sumber mematuhi aturan integritas akademik yang berlaku.
+client/            template HTML, CSS, JS
+server/
+  cmd/             smoketest dan devseed
+  internal/
+    auth, session, csrf, user     login, session, CSRF, kelola user
+    authz, admin, connmgr,        hak akses, group, koneksi database,
+    secretbox, store              enkripsi password koneksi
+    dbmanager                     viewer schema dan data
+    migration                     migration dan EXPLAIN
+    web, httpx                    render halaman dan helper HTTP
+  migrations/      skema database platform
+docker/            data database contoh
+```

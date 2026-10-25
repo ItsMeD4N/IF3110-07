@@ -2,7 +2,7 @@
 {{define "content"}}
 <section class="card form-card narrow">
   <h1>Masuk</h1>
-  <p class="muted">Gunakan akun yang dibuat oleh Platform Admin.</p>
+  <p class="muted">Pakai akun yang dibuatkan Platform Admin.</p>
   <form method="post" action="/login" class="form" autocomplete="on">
     {{.CSRFField}}
     {{if .Data}}{{with .Data.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}{{end}}

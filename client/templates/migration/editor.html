@@ -5,7 +5,7 @@
 <header class="page-header">
   <div>
     <h1>Migration</h1>
-    <p class="muted">Susun SQL sebagai draft, tinjau execution plan, lalu jalankan. Setiap eksekusi tercatat di riwayat.</p>
+    <p class="muted">Tulis SQL, simpan sebagai draft atau langsung jalankan. Semua eksekusi tercatat di riwayat.</p>
   </div>
   <a class="btn" href="/databases/{{$id}}/migrations/history">Riwayat</a>
 </header>
@@ -24,25 +24,23 @@
       <span class="muted small">Maksimal 1 MiB</span>
     </div>
     <textarea id="sql" class="sql" name="sql" rows="12" spellcheck="false" required placeholder="ALTER TABLE customers ADD COLUMN email text;">{{.Data.SQL}}</textarea>
-    <p class="muted small">SQL dijalankan dalam satu transaksi: jika ada statement yang gagal, semua perubahan di-rollback. Jangan tulis BEGIN/COMMIT sendiri.</p>
+    <p class="muted small">Semua statement jalan dalam satu transaksi. Kalau ada yang gagal, semuanya di-rollback. Tidak perlu tulis BEGIN/COMMIT.</p>
     <div class="form-actions" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
       <button class="btn" type="submit" name="action" value="draft">Simpan draft</button>
       {{if or .Data.CanRun .Data.CanEdit}}
       <button class="btn btn-primary" type="submit" name="action" value="run"
               onclick="return confirm('Jalankan SQL ini sekarang pada database target?')">Jalankan sekarang</button>
       {{end}}
-      <button class="btn btn-secondary" id="btnExplain" type="button">
-        🔍 Analisis Execution Plan (EXPLAIN)
-      </button>
+      <button class="btn btn-secondary" id="btnExplain" type="button">Cek execution plan</button>
       <label style="display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: var(--muted); cursor: pointer; user-select: none;">
         <input type="checkbox" id="chkAnalyze" checked>
-        <span>Sertakan <strong>ANALYZE</strong> (Ukur waktu nyata &amp; row aktual via Safe Rollback)</span>
+        <span>Pakai ANALYZE (query dijalankan lalu di-rollback)</span>
       </label>
     </div>
   </form>
 </section>
 {{else}}
-<div class="alert alert-info">Akses Anda View Only: Anda bisa melihat draft dan riwayat migration, serta menganalisis query dengan EXPLAIN, namun eksekusi migrasi dinonaktifkan.</div>
+<div class="alert alert-info">Akses kamu View Only, jadi cuma bisa melihat draft dan riwayat migration.</div>
 {{end}}
 
 <section class="card">
@@ -63,8 +61,8 @@
 <section class="card" id="explainPanel" style="display: none; margin-top: 1.5rem;">
   <div class="page-header" style="margin-bottom: 1rem;">
     <div>
-      <h2 style="font-size: 1.25rem;">Hasil Analisis Execution Plan</h2>
-      <p class="muted small" id="explainSubtext">Informasi scan type, index, join strategy, cost, dan performa database.</p>
+      <h2 style="font-size: 1.25rem;">Execution plan</h2>
+      <p class="muted small" id="explainSubtext">Jenis scan, index, join, cost, dan waktu eksekusi.</p>
     </div>
     <span class="badge" id="explainBadge">EXPLAIN</span>
   </div>
@@ -164,7 +162,7 @@
   btnExplain.addEventListener('click', async () => {
     const sqlText = sqlArea.value.trim();
     if (!sqlText) {
-      alert('Silakan masukkan query SQL terlebih dahulu untuk dianalisis.');
+      alert('Isi SQL-nya dulu.');
       sqlArea.focus();
       return;
     }
@@ -173,12 +171,12 @@
     status.style.display = 'block';
     status.style.background = 'var(--surface-2)';
     status.style.color = 'var(--text)';
-    status.innerHTML = '⏳ Menjalankan analisis Query Execution Plan pada database target...';
+    status.textContent = 'Menjalankan EXPLAIN...';
     container.innerHTML = '';
     btnExplain.disabled = true;
 
     const analyze = chkAnalyze.checked;
-    badge.textContent = analyze ? 'EXPLAIN ANALYZE (Safe Rollback)' : 'EXPLAIN (Estimasi Saja)';
+    badge.textContent = analyze ? 'EXPLAIN ANALYZE' : 'EXPLAIN';
     badge.className = 'badge ' + (analyze ? 'badge-warn' : 'badge-neutral');
 
     try {
@@ -200,7 +198,7 @@
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || data.error || data.message || 'Gagal menjalankan EXPLAIN');
+        throw new Error(data.detail || data.error || data.message || 'EXPLAIN gagal');
       }
 
       status.style.display = 'none';
@@ -209,7 +207,7 @@
       status.style.display = 'block';
       status.style.background = 'var(--danger-soft, #fee2e2)';
       status.style.color = 'var(--danger, #991b1b)';
-      status.textContent = '❌ ' + err.message;
+      status.textContent = err.message;
     } finally {
       btnExplain.disabled = false;
     }
@@ -217,7 +215,7 @@
 
   function renderResults(results, isAnalyze) {
     if (!results || results.length === 0) {
-      container.innerHTML = '<p class="muted">Tidak ada hasil query yang dapat dianalisis.</p>';
+      container.innerHTML = '<p class="muted">Tidak ada statement yang bisa di-EXPLAIN.</p>';
       return;
     }
 
@@ -248,7 +246,7 @@
         noteBox.style.background = 'var(--surface-2)';
         noteBox.style.borderLeftColor = 'var(--muted)';
         noteBox.style.color = 'var(--text)';
-        noteBox.textContent = 'ℹ️ ' + (r.note || 'Pernyataan ini tidak menghasilkan execution plan.');
+        noteBox.textContent = (r.note || 'Statement ini tidak punya execution plan.');
         qCard.appendChild(noteBox);
         container.appendChild(qCard);
         return;
@@ -260,7 +258,7 @@
         s.warnings.forEach(w => {
           const warn = document.createElement('div');
           warn.className = 'plan-warning-box';
-          warn.innerHTML = `⚠️ <strong>Catatan Optimasi:</strong> ${escapeHtml(w)}`;
+          warn.innerHTML = `<strong>Catatan:</strong> ${escapeHtml(w)}`;
           qCard.appendChild(warn);
         });
       }
@@ -268,7 +266,7 @@
       const grid = document.createElement('div');
       grid.className = 'plan-summary-grid';
 
-      const cardScan = createMetricCard('Jenis Scan', '');
+      const cardScan = createMetricCard('Scan', '');
       const scanVal = cardScan.querySelector('.plan-metric-val');
       if (s.scan_types && s.scan_types.length > 0) {
         scanVal.innerHTML = s.scan_types.map(t => {
@@ -276,49 +274,49 @@
           return `<span class="plan-pill ${cls}">${escapeHtml(t)}</span>`;
         }).join('');
       } else {
-        scanVal.innerHTML = '<span class="muted small">Tidak ada scan tabel</span>';
+        scanVal.innerHTML = '<span class="muted small">Tidak ada</span>';
       }
       grid.appendChild(cardScan);
 
-      const cardIdx = createMetricCard('Index Digunakan', '');
+      const cardIdx = createMetricCard('Index', '');
       const idxVal = cardIdx.querySelector('.plan-metric-val');
       if (s.indexes_used && s.indexes_used.length > 0) {
         idxVal.innerHTML = s.indexes_used.map(ix => `<span class="plan-pill pill-idx">${escapeHtml(ix)}</span>`).join('');
       } else {
-        idxVal.innerHTML = '<span class="muted small">Tanpa Index (Full Scan / Virtual)</span>';
+        idxVal.innerHTML = '<span class="muted small">Tidak ada</span>';
       }
       grid.appendChild(cardIdx);
 
-      const cardJoin = createMetricCard('Join Strategy', '');
+      const cardJoin = createMetricCard('Join', '');
       const joinVal = cardJoin.querySelector('.plan-metric-val');
       if (s.join_strategies && s.join_strategies.length > 0) {
         joinVal.innerHTML = s.join_strategies.map(j => `<span class="plan-pill pill-join">${escapeHtml(j)}</span>`).join('');
       } else {
-        joinVal.innerHTML = '<span class="muted small">Single Table / Tanpa Join</span>';
+        joinVal.innerHTML = '<span class="muted small">Tidak ada</span>';
       }
       grid.appendChild(cardJoin);
 
       const costText = `${s.startup_cost.toFixed(2)} .. ${s.total_cost.toFixed(2)}`;
-      grid.appendChild(createMetricCard('Estimated Cost', costText));
+      grid.appendChild(createMetricCard('Estimasi cost', costText));
 
       if (isAnalyze && s.actual_time_ms !== undefined && s.actual_time_ms !== null) {
-        grid.appendChild(createMetricCard('Actual Execution Time', `${s.actual_time_ms.toFixed(3)} ms`));
+        grid.appendChild(createMetricCard('Waktu eksekusi', `${s.actual_time_ms.toFixed(3)} ms`));
       } else {
-        grid.appendChild(createMetricCard('Actual Execution Time', 'Hanya di ANALYZE'));
+        grid.appendChild(createMetricCard('Waktu eksekusi', 'Perlu ANALYZE'));
       }
 
-      let rowText = `Plan: ${s.rows_planned}`;
+      let rowText = `Estimasi ${s.rows_planned}`;
       if (isAnalyze && s.rows_processed !== undefined && s.rows_processed !== null) {
-        rowText += ` · Aktual: ${s.rows_processed}`;
+        rowText += `, aktual ${s.rows_processed}`;
       }
-      grid.appendChild(createMetricCard('Jumlah Row', rowText));
+      grid.appendChild(createMetricCard('Row', rowText));
 
       qCard.appendChild(grid);
 
       if (r.root_node) {
         const treeSection = document.createElement('div');
         treeSection.style.marginTop = '16px';
-        treeSection.innerHTML = '<h4 style="font-size: 0.95rem; margin-bottom: 8px;">Pohon Execution Plan (Hierarki Node)</h4>';
+        treeSection.innerHTML = '<h4 style="font-size: 0.95rem; margin-bottom: 8px;">Plan tree</h4>';
         const treeContainer = document.createElement('div');
         renderNodeTree(r.root_node, treeContainer, isAnalyze);
         treeSection.appendChild(treeContainer);
@@ -328,7 +326,7 @@
       if (r.raw_text) {
         const details = document.createElement('details');
         details.style.marginTop = '12px';
-        details.innerHTML = `<summary style="cursor: pointer; font-size: 0.85rem; color: var(--accent); font-weight: 600;">Lihat Output Mentah EXPLAIN (Format Teks)</summary>
+        details.innerHTML = `<summary style="cursor: pointer; font-size: 0.85rem; color: var(--accent); font-weight: 600;">Lihat output teks</summary>
           <pre style="background: var(--surface-2); padding: 10px; border-radius: 6px; font-size: 0.8rem; overflow-x: auto; margin-top: 8px;">${escapeHtml(r.raw_text)}</pre>`;
         qCard.appendChild(details);
       }
@@ -355,12 +353,12 @@
       headerText += ` pada <code>${escapeHtml(node.relation_name)}</code>`;
     }
     if (node.index_name) {
-      headerText += ` menggunakan index <code>${escapeHtml(node.index_name)}</code>`;
+      headerText += ` pakai index <code>${escapeHtml(node.index_name)}</code>`;
     }
 
-    let meta = `Biaya: ${node.startup_cost.toFixed(2)}..${node.total_cost.toFixed(2)} | Estimasi Baris: ${node.plan_rows}`;
+    let meta = `cost ${node.startup_cost.toFixed(2)}..${node.total_cost.toFixed(2)}, estimasi ${node.plan_rows} row`;
     if (isAnalyze && node.actual_total_time !== undefined && node.actual_total_time !== null) {
-      meta += ` | Waktu Aktual: ${node.actual_total_time.toFixed(3)} ms | Baris Aktual: ${node.actual_rows}`;
+      meta += `, aktual ${node.actual_rows} row dalam ${node.actual_total_time.toFixed(3)} ms`;
     }
 
     let conditions = '';

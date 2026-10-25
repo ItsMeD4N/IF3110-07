@@ -35,8 +35,8 @@
       </label>
     </div>
     <p class="muted small hint">
-      {{if $d.Editing}}Password tersimpan tidak pernah ditampilkan. Isi hanya jika ingin menggantinya.
-      {{else}}Password disimpan terenkripsi dan tidak akan ditampilkan kembali.{{end}}
+      {{if $d.Editing}}Kosongkan kalau tidak mau ganti password.
+      {{else}}Password disimpan terenkripsi.{{end}}
     </p>
     <label>SSL mode
       <select name="ssl_mode">
@@ -46,7 +46,7 @@
 
     {{with $d.Test}}
     <div class="test-box {{if .OK}}test-ok{{else}}test-fail{{end}}" role="status">
-      {{if .OK}}Berhasil terhubung | PostgreSQL {{.ServerVersion}}, {{.LatencyMS}} ms.
+      {{if .OK}}Terhubung ke PostgreSQL {{.ServerVersion}} ({{.LatencyMS}} ms).
       {{else}}Tes koneksi gagal: {{.Error}}{{end}}
       {{if not $d.Editing}}<div class="small">Isi ulang password sebelum menyimpan.</div>{{end}}
     </div>
