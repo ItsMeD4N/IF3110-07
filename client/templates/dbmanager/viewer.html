@@ -89,7 +89,7 @@
       const t = (schemaInfo.tables || []).find(x => x.name === currentTable);
       metadata.replaceChildren();
       if (t) {
-        metadata.append(el('h3', `${t.name} — ${t.type}`));
+        metadata.append(el('h3', `${t.name} | ${t.type}`));
         metadata.append(el('h4', 'Kolom'));
         metadata.append(makeTable(['Nama', 'Tipe', 'Nullable', 'Default', 'Urutan'], t.columns.map(c => [c.name, c.type, c.nullable ? 'Ya' : 'Tidak', c.default || '—', c.ordinal])));
         metadata.append(el('h4', 'Constraint'));
