@@ -339,11 +339,214 @@ func main() {
 	}
 
 	fmt.Println("\n==================================================================")
-	fmt.Println("🎉 SEMUA PENGUJIAN INTEGRASI LIVE BERHASIL DENGAN SEMPURNA!")
-	fmt.Println("   - Modul Orang A (Identity, Password Bcrypt, Session CSPRNG, User CRUD): PASS")
-	fmt.Println("   - Modul Orang B (RBAC Engine, Secretbox, Database Connections, Grants): PASS")
-	fmt.Println("   - Modul Orang C (Transactional Migration Runner, Schema & Data Viewer): PASS")
+	fmt.Println("🛡️ BAGIAN II: PENGUJIAN EDGE CASES & ERROR CASES")
 	fmt.Println("==================================================================")
+
+	testEdgeAndErrorCases(baseURL, dbID, csrfToken, me.ID)
+
+	fmt.Println("\n==================================================================")
+	fmt.Println("🎉 SELURUH PENGUJIAN (HAPPY PATH & EDGE CASES) LULUS 100%!")
+	fmt.Println("   - Modul Orang A (Identity, Bcrypt, Session CSRF, User CRUD): PASS")
+	fmt.Println("   - Modul Orang B (RBAC Engine, Secretbox, Database Connections): PASS")
+	fmt.Println("   - Modul Orang C (Migration Rollback, Schema & Data Viewer, EXPLAIN): PASS")
+	fmt.Println("==================================================================")
+}
+
+func testEdgeAndErrorCases(baseURL string, dbID int64, adminCSRF, adminID string) {
+	noCookieClient := &http.Client{Timeout: 5 * time.Second}
+
+	// 1. Error Case: Login dengan password salah
+	fmt.Print("\n[E1] Login dengan password salah... ")
+	wrongForm := url.Values{
+		"username":   {"admin"},
+		"password":   {"SalahPassword123#"},
+		"csrf_token": {adminCSRF},
+	}
+	req, _ := http.NewRequest("POST", baseURL+"/login", strings.NewReader(wrongForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-CSRF-Token", adminCSRF)
+	resp, _ := noCookieClient.Do(req)
+	resp.Body.Close()
+	// Verifikasi tidak ada cookie sesi yang terbit
+	issuedSession := false
+	for _, c := range resp.Cookies() {
+		if c.Name == "app_session_id" && c.Value != "" {
+			issuedSession = true
+		}
+	}
+	if issuedSession {
+		fatal("Error Case Gagal: Sesi tetap dibuat meskipun password salah!")
+	}
+	fmt.Println("PASSED (Login ditolak, tidak ada sesi terpasang)")
+
+	// 2. Error Case: Proteksi CSRF (Request POST tanpa token anti-CSRF)
+	fmt.Print("[E2] Proteksi CSRF: Request POST tanpa CSRF token... ")
+	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(`{"username":"csrf_victim","password":"Password#123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ = noCookieClient.Do(req)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		fatal("CSRF Bypass terdeteksi! Expected 403 Forbidden, got %d", resp.StatusCode)
+	}
+	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
+
+	// 3. Error Case: Proteksi CSRF (Request POST dengan token palsu/acak)
+	fmt.Print("[E3] Proteksi CSRF: Request POST dengan token palsu/manipulasi... ")
+	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(`{"username":"csrf_victim","password":"Password#123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", "fake_invalid_token_1234567890abcdef")
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "different_real_token_value_abc"})
+	resp, _ = noCookieClient.Do(req)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		fatal("CSRF Validation gagal! Expected 403 Forbidden, got %d", resp.StatusCode)
+	}
+	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
+
+	// 4. Edge Case: Akses endpoint admin oleh user biasa (RBAC check)
+	fmt.Print("[E4] Hak Akses RBAC: User biasa mengakses endpoint Platform Admin... ")
+	aliceJar, _ := cookiejar.New(nil)
+	aliceClient := &http.Client{Jar: aliceJar, Timeout: 5 * time.Second}
+	_ = aliceClient
+	aliceLoginForm := url.Values{
+		"username":   {"alice"},
+		"password":   {"Password#123"},
+		"csrf_token": {adminCSRF},
+	}
+	req, _ = http.NewRequest("POST", baseURL+"/login", strings.NewReader(aliceLoginForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-CSRF-Token", adminCSRF)
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: adminCSRF})
+	resp, _ = aliceClient.Do(req)
+	resp.Body.Close()
+
+	// Alice mencoba akses endpoint admin
+	req, _ = http.NewRequest("GET", baseURL+"/api/admin/users", nil)
+	resp, _ = aliceClient.Do(req)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		fatal("RBAC Breach! User biasa dapat mengakses /api/admin/users (Status %d)", resp.StatusCode)
+	}
+	fmt.Println("PASSED (Ditolak dengan HTTP 403 Forbidden)")
+
+	// 5. Edge Case: Self-deactivation prevention (Admin dilarang menonaktifkan dirinya sendiri)
+	fmt.Print("[E5] Integritas Akun: Admin mencoba menonaktifkan akunnya sendiri... ")
+	adminClient := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+	deactPayload := `{"username":"admin", "is_active": false}`
+	req, _ = http.NewRequest("PUT", fmt.Sprintf("%s/api/admin/users/%s", baseURL, adminID), strings.NewReader(deactPayload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", adminCSRF)
+	req.AddCookie(&http.Cookie{Name: "app_session_id", Value: getAdminToken(baseURL, adminCSRF)})
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: adminCSRF})
+	resp, _ = adminClient.Do(req)
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		fatal("Platform Admin berhasil menonaktifkan dirinya sendiri! Status: %d", resp.StatusCode)
+	}
+	fmt.Printf("PASSED (Ditolak HTTP 400: %s)\n", strings.TrimSpace(string(body)))
+
+	// 6. Error Case: Validasi Input User (Password < 8 karakter)
+	fmt.Print("[E6] Validasi Input: Pembuatan user dengan password lemah (< 8 karakter)... ")
+	invalidUserPayload := `{"username":"shortpwd_user","password":"123"}`
+	req, _ = http.NewRequest("POST", baseURL+"/api/admin/users", strings.NewReader(invalidUserPayload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", adminCSRF)
+	req.AddCookie(&http.Cookie{Name: "app_session_id", Value: getAdminToken(baseURL, adminCSRF)})
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: adminCSRF})
+	resp, _ = adminClient.Do(req)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		fatal("Validasi password lemah gagal! Expected 400 Bad Request, got %d", resp.StatusCode)
+	}
+	fmt.Println("PASSED (Ditolak HTTP 400 Bad Request)")
+
+	// 7. Edge Case: Session Tampering (Cookie dimodifikasi/korup)
+	fmt.Print("[E7] Session Tampering: Mengakses endpoint dengan cookie sesi palsu... ")
+	tamperedClient := &http.Client{Timeout: 5 * time.Second}
+	req, _ = http.NewRequest("GET", baseURL+"/api/admin/users", nil)
+	req.AddCookie(&http.Cookie{Name: "app_session_id", Value: "tampered_session_token_1234567890abcdef"})
+	resp, _ = tamperedClient.Do(req)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		fatal("Session tampering tidak terdeteksi! Expected 401 Unauthorized, got %d", resp.StatusCode)
+	}
+	fmt.Println("PASSED (Ditolak HTTP 401 Unauthorized)")
+
+	// 8. Error Case: Migration SQL Error & Atomic Rollback
+	fmt.Print("[E8] Atomic Rollback: Migrasi dengan SQL sintaks salah... ")
+	errSQL := `
+		CREATE TABLE IF NOT EXISTS test_atomic_rollback (id serial primary key);
+		SINTAKS_NGASAL_ERROR_SAYA_BUAT_UNTUK_MENGUJI_ROLLBACK;
+	`
+	errForm := url.Values{
+		"sql":        {errSQL},
+		"csrf_token": {adminCSRF},
+	}
+	req, _ = http.NewRequest("POST", fmt.Sprintf("%s/api/databases/%d/migrations", baseURL, dbID), strings.NewReader(errForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-CSRF-Token", adminCSRF)
+	req.AddCookie(&http.Cookie{Name: "app_session_id", Value: getAdminToken(baseURL, adminCSRF)})
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: adminCSRF})
+	resp, _ = adminClient.Do(req)
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		fatal("Migrasi sintaks salah tidak ditolak! Status: %d", resp.StatusCode)
+	}
+
+	// Verifikasi bahwa tabel 'test_atomic_rollback' TIDAK ADA di skema (terbukti di-rollback)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("%s/api/databases/%d/schema?schema=public", baseURL, dbID), nil)
+	req.AddCookie(&http.Cookie{Name: "app_session_id", Value: getAdminToken(baseURL, adminCSRF)})
+	resp, _ = adminClient.Do(req)
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if strings.Contains(string(body), "test_atomic_rollback") {
+		fatal("Atomic rollback gagal! Tabel parsial tetap terbuat di database!")
+	}
+	fmt.Println("PASSED (Transaksi di-rollback 100%, tabel tidak tersimpan)")
+
+	// 9. Edge Case: EXPLAIN pada DDL (Informasi bahwa DDL tidak memiliki execution plan optimizer)
+	fmt.Print("[E9] Query Execution Plan: EXPLAIN pada DDL statement (CREATE TABLE)... ")
+	expDDL := `CREATE TABLE test_sample (id int);`
+	req, _ = http.NewRequest("POST", fmt.Sprintf("%s/api/databases/%d/migrations/explain", baseURL, dbID), strings.NewReader(fmt.Sprintf(`{"sql":"%s","analyze":false}`, expDDL)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", adminCSRF)
+	req.AddCookie(&http.Cookie{Name: "app_session_id", Value: getAdminToken(baseURL, adminCSRF)})
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: adminCSRF})
+	resp, _ = adminClient.Do(req)
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), "is_explainable\":false") {
+		fatal("EXPLAIN pada DDL tidak ditangani secara graceful: %s", string(body))
+	}
+	fmt.Println("PASSED (Diberi penjelasan informatif bahwa DDL tidak menggunakan optimizer)")
+}
+
+func getAdminToken(baseURL, csrfToken string) string {
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Jar: jar, Timeout: 5 * time.Second}
+	form := url.Values{
+		"username":   {"admin"},
+		"password":   {"Admin#Password123"},
+		"csrf_token": {csrfToken},
+	}
+	req, _ := http.NewRequest("POST", baseURL+"/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: csrfToken})
+	resp, _ := client.Do(req)
+	resp.Body.Close()
+
+	u, _ := url.Parse(baseURL)
+	for _, c := range client.Jar.Cookies(u) {
+		if c.Name == "app_session_id" {
+			return c.Value
+		}
+	}
+	return ""
 }
 
 func fatal(format string, args ...any) {
