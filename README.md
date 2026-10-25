@@ -6,13 +6,13 @@ Platform manajemen database terpusat berbasis web untuk mengelola akses multi-pe
 
 ---
 
-## 👥 Anggota Kelompok & Pembagian Tugas
+## Anggota Kelompok & Pembagian Tugas
 
 | No | Nama | NIM | Peran Utama | Lingkup Tanggung Jawab |
 | :---: | :--- | :---: | :---: | :--- |
 | 1 | **DAN** (ItsMeD4N) | *[Isi NIM]* | **Orang A** | **Identity, Session & Security Foundation** |
-| 2 | **YavieAzka** | *[Isi NIM]* | **Orang B** | **Authorization & Admin Console** |
-| 3 | **R27-04** (Raynaldi) | *[Isi NIM]* | **Orang C** | **Database Viewer, Migration & Bonus** |
+| 2 | **YavieAzka** | *13524077* | **Orang B** | **Authorization & Admin Console, Bonus (Query Execution Plan Analysis)** |
+| 3 | **R27-04** (Raynaldi) | *[Isi NIM]* | **Orang C** | **Database Viewer, Migration** |
 
 ### Detail Pembagian Tugas (Work Breakdown Structure)
 
@@ -83,7 +83,7 @@ Platform manajemen database terpusat berbasis web untuk mengelola akses multi-pe
 
 ---
 
-## 🛠️ Arsitektur & Teknologi
+## Arsitektur & Teknologi
 
 ```text
 ┌────────────────────────────────────────────────────────┐
@@ -122,7 +122,7 @@ Platform manajemen database terpusat berbasis web untuk mengelola akses multi-pe
 
 ---
 
-## ⚙️ Parameter Konfigurasi & Keamanan
+## Parameter Konfigurasi & Keamanan
 
 Sesuai spesifikasi teknis Milestone 1, sistem mengonfigurasi parameter sesi dan keamanan sebagai berikut:
 
@@ -140,7 +140,7 @@ Sesuai spesifikasi teknis Milestone 1, sistem mengonfigurasi parameter sesi dan 
 
 ---
 
-## 🚀 Panduan Menjalankan Aplikasi
+## Panduan Menjalankan Aplikasi
 
 ### 1. Prasyarat
 - **Go**: Versi 1.22 atau lebih baru.
@@ -178,7 +178,7 @@ Aplikasi telah dilengkapi dengan akun bawaan untuk pengujian awal:
 
 ---
 
-## 🧪 Panduan Menjalankan Automated Tests
+## Panduan Menjalankan Automated Tests
 
 Seluruh modul telah dilengkapi pengujian otomatis (*unit test*, *integration test*, dan *E2E live smoketest*).
 
@@ -225,7 +225,7 @@ Skrip ini akan menguji secara live:
 
 ---
 
-## 📂 Struktur Direktori Proyek
+## Struktur Direktori Proyek
 
 ```text
 IF3110-07/
@@ -276,5 +276,5 @@ IF3110-07/
 
 ---
 
-## 📜 Lisensi & Integritas Akademik
+## Lisensi & Integritas Akademik
 Proyek ini dikembangkan untuk memenuhi tugas besar mata kuliah **IF3110 Pengembangan Aplikasi Web 2026** di Institut Teknologi Bandung. Seluruh kode sumber mematuhi aturan integritas akademik yang berlaku.
