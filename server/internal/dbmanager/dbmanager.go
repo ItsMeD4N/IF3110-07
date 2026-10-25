@@ -259,7 +259,26 @@ func (m *Module) apiTableData(w http.ResponseWriter, r *http.Request) {
 		httpx.Internal(w, r, err)
 		return
 	}
-	rows, err := db.QueryContext(r.Context(), "SELECT * FROM "+qname+" LIMIT $1 OFFSET $2", limit, offset)
+	var pkCol string
+	_ = db.QueryRowContext(r.Context(), `
+		SELECT kcu.column_name 
+		FROM information_schema.table_constraints tc 
+		JOIN information_schema.key_column_usage kcu 
+		  ON tc.constraint_name = kcu.constraint_name 
+		  AND tc.table_schema = kcu.table_schema 
+		WHERE tc.constraint_type = 'PRIMARY KEY' 
+		  AND tc.table_schema = $1 
+		  AND tc.table_name = $2 
+		ORDER BY kcu.ordinal_position 
+		LIMIT 1`, schema, table).Scan(&pkCol)
+
+	dataQuery := "SELECT * FROM " + qname
+	if pkCol != "" {
+		dataQuery += " ORDER BY " + pq.QuoteIdentifier(pkCol) + " ASC"
+	}
+	dataQuery += " LIMIT $1 OFFSET $2"
+
+	rows, err := db.QueryContext(r.Context(), dataQuery, limit, offset)
 	if err != nil {
 		httpx.Internal(w, r, err)
 		return

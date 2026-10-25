@@ -26,19 +26,10 @@ func NewHandler(userRepo auth.UserRepository, sessionMgr *session.Manager, viewE
 	}
 }
 
-// RegisterRoutes mendaftarkan seluruh rute web / MPA (Go HTML Template)
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+// RegisterAdminUserRoutes mendaftarkan rute web untuk manajemen pengguna Platform Admin
+func (h *Handler) RegisterAdminUserRoutes(mux *http.ServeMux) {
 	authMw := auth.RequireAuth(h.userRepo, h.sessionMgr)
 	adminMw := user.RequirePlatformAdmin
-	maybeAuth := auth.Authenticate(h.userRepo, h.sessionMgr)
-
-	// 1. Root & Login
-	mux.Handle("GET /{$}", maybeAuth(http.HandlerFunc(h.handleRoot)))
-	mux.Handle("GET /login", maybeAuth(http.HandlerFunc(h.handleLoginPage)))
-	mux.HandleFunc("POST /login", h.handleLoginForm)
-	mux.Handle("POST /logout", authMw(http.HandlerFunc(h.handleLogoutForm)))
-
-	// 2. Admin Users Management (Protected)
 	adminProtect := func(fn http.HandlerFunc) http.Handler {
 		return authMw(adminMw(fn))
 	}
@@ -49,6 +40,21 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /admin/users/{id}/reset-password", adminProtect(h.handleWebResetPassword))
 	mux.Handle("POST /admin/users/{id}/revoke-sessions", adminProtect(h.handleWebRevokeSessions))
 	mux.Handle("POST /admin/users/{id}/delete", adminProtect(h.handleWebDeleteUser))
+}
+
+// RegisterRoutes mendaftarkan seluruh rute web / MPA (Go HTML Template)
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	authMw := auth.RequireAuth(h.userRepo, h.sessionMgr)
+	maybeAuth := auth.Authenticate(h.userRepo, h.sessionMgr)
+
+	// 1. Root & Login
+	mux.Handle("GET /{$}", maybeAuth(http.HandlerFunc(h.handleRoot)))
+	mux.Handle("GET /login", maybeAuth(http.HandlerFunc(h.handleLoginPage)))
+	mux.HandleFunc("POST /login", h.handleLoginForm)
+	mux.Handle("POST /logout", authMw(http.HandlerFunc(h.handleLogoutForm)))
+
+	// 2. Admin Users Management (Protected)
+	h.RegisterAdminUserRoutes(mux)
 }
 
 func (h *Handler) handleRoot(w http.ResponseWriter, r *http.Request) {

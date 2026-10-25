@@ -266,8 +266,9 @@ func sanitize(err error, cfg Config) string {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(msg, "i/o timeout"):
 		return "timeout: server database tidak merespons (" + msg + ")"
-	case strings.Contains(msg, "connection refused"):
+	case strings.Contains(msg, "connection refused") || strings.Contains(msg, "actively refused"):
 		return "koneksi ditolak: pastikan host dan port benar serta server PostgreSQL berjalan (" + msg + ")"
+
 	case strings.Contains(msg, "no such host"):
 		return "host tidak ditemukan (" + msg + ")"
 	case strings.Contains(msg, "password authentication failed"):

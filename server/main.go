@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/admin"
@@ -14,8 +15,11 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/dbmanager"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/migration"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/user"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/view"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 	"github.com/ItsMeD4N/IF3110-07/server/migrations"
 )
@@ -83,9 +87,17 @@ func main() {
 	}
 	adminMod.RegisterRoutes(mux)
 
-	// [Orang C] Modul Database Viewer & Migration (Akan didaftarkan oleh Orang C)
-	// dbmanager.RegisterRoutes(mux)
-	// migration.RegisterRoutes(mux)
+	// [Orang A] Web Platform Admin User Management
+	viewEngine := view.NewEngine(filepath.Join(clientDir, "templates"), !isProd)
+	webHandler := web.NewHandler(userRepo, sessionMgr, viewEngine)
+	webHandler.RegisterAdminUserRoutes(mux)
+
+	// [Orang C] Modul Database Viewer & Migration
+	dbMgr := dbmanager.New(adminMod.Conns, adminMod.Authz, userRepo, sessionMgr, views)
+	dbMgr.RegisterRoutes(mux)
+
+	migMod := migration.New(db, adminMod.Conns, adminMod.Authz, userRepo, sessionMgr, views)
+	migMod.RegisterRoutes(mux)
 
 	// 4. Pasang Global Middleware: Logging, CORS, CSRF, dan Security Headers
 	handler := securityHeadersMiddleware(mux)
