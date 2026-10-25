@@ -8,11 +8,11 @@ Platform manajemen database terpusat berbasis web untuk mengelola akses multi-pe
 
 ## Anggota Kelompok & Pembagian Tugas
 
-| No | Nama | NIM | Peran Utama | Lingkup Tanggung Jawab |
+| No | Nama | NIM | Lingkup Tanggung Jawab |
 | :---: | :--- | :---: | :---: | :--- |
-| 1 | Yavie Azka Putra Araly | *13524077* | **Orang B** | **Authorization & Admin Console, Bonus (Query Execution Plan Analysis)** |
-| 2 | Rainaldi Pratama F Sembiring | 13524117 | **Orang C** | **Database Viewer, Migration** |
-| 3 | Daniel Putra Rywandi S | 13524143 | **Orang A** | **Identity, Session & Security Foundation** |
+| 1 | Yavie Azka Putra Araly | *13524077* | **Authorization & Admin Console, Bonus (Query Execution Plan Analysis)** |
+| 2 | Rainaldi Pratama F Sembiring | 13524117 | **Database Viewer, Migration** |
+| 3 | Daniel Putra Rywandi S | 13524143 | **Identity, Session & Security Foundation** |
 
 
 ## Arsitektur & Teknologi
