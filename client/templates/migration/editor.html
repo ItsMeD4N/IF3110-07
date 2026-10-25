@@ -1,0 +1,22 @@
+{{define "title"}}SQL Migration{{end}}
+{{define "content"}}
+{{$id := .Data.DatabaseID}}
+<header class="page-header">
+  <div><p class="crumb"><a href="/databases/{{$id}}">Database</a> / SQL Migration</p><h1>SQL Migration</h1><p class="muted">Tinjau SQL sebelum menjalankan. Setiap eksekusi dicatat dalam history.</p></div>
+  <a class="btn btn-secondary" href="/databases/{{$id}}/migrations/history">Lihat history</a>
+</header>
+{{if .Data.Error}}<div class="alert alert-error" role="alert">{{.Data.Error}}</div>{{end}}
+<section class="card">
+  {{if .Data.CanEdit}}
+  <form method="post" action="/databases/{{$id}}/migrations">
+    {{.CSRFField}}
+    <label for="sql">SQL migration</label>
+    <textarea id="sql" name="sql" rows="16" spellcheck="false" required placeholder="ALTER TABLE ...;">{{.Data.SQL}}</textarea>
+    <p class="muted small">SQL dijalankan dalam satu transaksi. Jika gagal, perubahan transaksi di-rollback. Maksimal 1 MiB.</p>
+    <button class="btn btn-primary" type="submit" onclick="return confirm('Jalankan SQL migration ini pada database target? Pastikan SQL sudah ditinjau.')">Jalankan migration</button>
+  </form>
+  {{else}}
+  <p>Akses Anda View Only. Anda dapat melihat history, tetapi tidak dapat membuat atau menjalankan migration.</p>
+  {{end}}
+</section>
+{{end}}
