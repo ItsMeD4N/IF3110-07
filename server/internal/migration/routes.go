@@ -28,6 +28,8 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/databases/{dbID}/migration-drafts/{draftID}", api(authz.PermDBEditMigration, m.apiDeleteDraft))
 	mux.Handle("POST /api/databases/{dbID}/migration-drafts/{draftID}/execute", api(authz.PermDBExecuteMigration, m.apiRunDraft))
 
+	m.registerEngineRoutes(mux)
+
 	if m.Views == nil {
 		return
 	}

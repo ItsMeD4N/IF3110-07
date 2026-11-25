@@ -13,6 +13,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 )
 
 const explainStatementTimeout = 10 * time.Second
@@ -150,7 +151,15 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results, err := runExplain(r.Context(), targetDB, sqlText, analyze, !canExecute)
+	explainCtx := telemetry.WithDatabaseID(r.Context(), id)
+	if act := executor(r); act != "" {
+		explainCtx = telemetry.WithActor(explainCtx, act)
+	}
+	explainCtx = telemetry.WithExecMeta(explainCtx, telemetry.ExecMeta{
+		Action:   "explain",
+		ReadOnly: !analyze,
+	})
+	results, err := runExplain(explainCtx, targetDB, sqlText, analyze, !canExecute)
 	if err != nil {
 		httpx.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
 			"error":  "EXPLAIN gagal dijalankan",
@@ -216,7 +225,7 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 	}
 
 	defer func() {
-		_ = tx.Rollback()
+		_ = telemetry.RollbackTx(ctx, tx, "explain_always_rollback")
 	}()
 
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", explainStatementTimeout.Milliseconds())); err != nil {
@@ -230,7 +239,7 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 	explainCmd += ") " + query
 
 	var jsonRaw string
-	if err := tx.QueryRowContext(ctx, explainCmd).Scan(&jsonRaw); err != nil {
+	if err := telemetry.QueryRowScan(ctx, tx, explainCmd, nil, &jsonRaw); err != nil {
 		return SingleExplainResult{}, err
 	}
 

@@ -12,7 +12,9 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/dblock"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 )
 
@@ -44,6 +46,7 @@ type Module struct {
 	MW         *authz.Middleware
 	AuthMW     *auth.Middleware
 	Views      *web.Views
+	Engine     *Engine
 }
 
 type Record struct {
@@ -115,6 +118,21 @@ func (m *Module) RunDraft(ctx context.Context, databaseID, draftID int64, execut
 func (m *Module) execute(ctx context.Context, databaseID int64, executor string,
 	load func(context.Context) (name, sqlText string, err error), onSuccess func(context.Context) error) (Record, error) {
 
+	if m.Engine != nil && m.Engine.Locker != nil {
+		lease, lErr := m.Engine.Locker.Acquire(ctx, dblock.AcquireRequest{
+			DatabaseID: databaseID,
+			OwnerID:    "sync-api-" + executor,
+			TTL:        m.Engine.LockTTL,
+		})
+		if lErr == nil {
+			defer func() {
+				_ = m.Engine.Locker.Release(context.Background(), lease)
+			}()
+		} else if errors.Is(lErr, dblock.ErrDatabaseBlocked) {
+			return Record{}, lErr
+		}
+	}
+
 	target, err := m.Conns.Pool(ctx, databaseID)
 	if err != nil {
 		return Record{}, err
@@ -148,7 +166,15 @@ func (m *Module) execute(ctx context.Context, databaseID int64, executor string,
 		return Record{}, fmt.Errorf("gagal mencatat migration: %w", err)
 	}
 
-	if err := runInTx(ctx, conn, sqlText); err != nil {
+	execCtx := telemetry.WithDatabaseID(ctx, databaseID)
+	execCtx = telemetry.WithActor(execCtx, executor)
+	execCtx = telemetry.WithExecMeta(execCtx, telemetry.ExecMeta{
+		MigrationID: rec.ID,
+		ExecutionID: rec.ID,
+		Attempt:     1,
+		Action:      "up",
+	})
+	if err := runInTx(execCtx, conn, sqlText); err != nil {
 		m.markFailed(ctx, &rec, err)
 		return rec, &ExecError{err}
 	}
@@ -173,11 +199,11 @@ func runInTx(ctx context.Context, conn *sql.Conn, sqlText string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, sqlText); err != nil {
-		_ = tx.Rollback()
+	if _, err := telemetry.ExecSQL(ctx, tx, sqlText); err != nil {
+		_ = telemetry.RollbackTx(ctx, tx, "sql_error")
 		return err
 	}
-	return tx.Commit()
+	return telemetry.CommitTx(ctx, tx)
 }
 
 func (m *Module) markFailed(ctx context.Context, rec *Record, runErr error) {
