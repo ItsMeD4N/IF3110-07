@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -12,24 +12,38 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth/loginpage"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/dblock"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/dbmanager"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/migration"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/queue"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/user"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 )
 
 type Options struct {
-	AppEnv        string
-	ClientDir     string
-	EncryptionKey []byte
+	AppEnv            string
+	ClientDir         string
+	EncryptionKey     []byte
+	DatabaseDSN       string
+	WorkerConcurrency int
+	DisableWorker     bool
+	RequireApproval   bool
+	ApprovalChecker   migration.ApprovalChecker
+	PollInterval      time.Duration
+	LockTTL           time.Duration
 }
 
 type App struct {
-	Handler  http.Handler
-	Users    auth.UserRepository
-	Sessions *session.Manager
-	admin    *admin.Module
+	Handler    http.Handler
+	Users      auth.UserRepository
+	Sessions   *session.Manager
+	Engine     *migration.Engine
+	Broker     queue.Broker
+	Locker     dblock.Locker
+	WorkerPool *queue.WorkerPool
+	admin      *admin.Module
 }
 
 func New(db *sql.DB, opt Options) (*App, error) {
@@ -49,8 +63,52 @@ func New(db *sql.DB, opt Options) (*App, error) {
 	}
 	adminMod.OnPrivilegeChange = func(ctx context.Context, userIDs []string, reason string) {
 		if err := sessions.RequireRotation(ctx, userIDs); err != nil {
-			log.Printf("[Admin] gagal menandai rotasi session (%s): %v", reason, err)
+			telemetry.LogEvent(ctx, slog.LevelWarn, "admin.session_rotation_failed",
+				slog.String("reason", reason),
+				slog.String("error", err.Error()),
+				slog.String("status", "warning"),
+			)
 		}
+	}
+
+	locker := dblock.NewPostgresLocker(db)
+	broker := queue.NewPostgresBroker(db, opt.DatabaseDSN)
+	engine := migration.NewEngine(db, adminMod.Conns, locker, broker, migration.EngineOptions{
+		ApprovalChecker: opt.ApprovalChecker,
+		RequireApproval: opt.RequireApproval,
+		LockTTL:         opt.LockTTL,
+	})
+
+	var pool *queue.WorkerPool
+	if !opt.DisableWorker {
+		concurrency := opt.WorkerConcurrency
+		if concurrency <= 0 {
+			concurrency = 4
+		}
+		pollInterval := opt.PollInterval
+		if pollInterval <= 0 {
+			if opt.AppEnv == "test" {
+				pollInterval = 25 * time.Millisecond
+			} else {
+				pollInterval = 150 * time.Millisecond
+			}
+		}
+		poolOpts := queue.PoolOptions{
+			Concurrency:  concurrency,
+			PollInterval: pollInterval,
+		}
+		if opt.AppEnv == "test" {
+			poolOpts.Backoff = queue.BackoffPolicy{
+				BaseDelay:   30 * time.Millisecond,
+				MaxDelay:    250 * time.Millisecond,
+				MaxAttempts: 3,
+				JitterRatio: 0.1,
+			}
+			poolOpts.ContentionDelay = 30 * time.Millisecond
+			poolOpts.ReclaimInterval = 200 * time.Millisecond
+		}
+		pool = queue.NewWorkerPool(broker, engine, poolOpts)
+		pool.Start(context.Background())
 	}
 
 	mux := http.NewServeMux()
@@ -66,17 +124,46 @@ func New(db *sql.DB, opt Options) (*App, error) {
 	loginpage.New(users, sessions, views).RegisterRoutes(mux)
 	adminMod.RegisterRoutes(mux)
 	dbmanager.New(adminMod.Conns, adminMod.Authz, users, sessions, views).RegisterRoutes(mux)
-	migration.New(db, adminMod.Conns, adminMod.Authz, users, sessions, views).RegisterRoutes(mux)
+
+	migMod := migration.New(db, adminMod.Conns, adminMod.Authz, users, sessions, views)
+	migMod.Engine = engine
+	migMod.RegisterRoutes(mux)
 
 	var h http.Handler = mux
 	h = securityHeaders(h)
 	h = csrf.Middleware(isProd)(h)
-	h = logRequests(h)
+	h = telemetry.HTTPMiddleware(func(ctx context.Context) string {
+		if u := auth.CurrentUser(ctx); u != nil {
+			return u.Username
+		}
+		return ""
+	})(h)
 
-	return &App{Handler: h, Users: users, Sessions: sessions, admin: adminMod}, nil
+	return &App{
+		Handler:    h,
+		Users:      users,
+		Sessions:   sessions,
+		Engine:     engine,
+		Broker:     broker,
+		Locker:     locker,
+		WorkerPool: pool,
+		admin:      adminMod,
+	}, nil
 }
 
-func (a *App) Close() { a.admin.Close() }
+func (a *App) Close() {
+	if a.WorkerPool != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = a.WorkerPool.Stop(ctx)
+		cancel()
+	}
+	if a.Broker != nil {
+		_ = a.Broker.Close()
+	}
+	if a.admin != nil {
+		a.admin.Close()
+	}
+}
 
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -84,13 +171,5 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		next.ServeHTTP(w, r)
-	})
-}
-
-func logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
 	})
 }
