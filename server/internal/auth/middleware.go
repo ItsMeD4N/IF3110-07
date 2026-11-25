@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 )
 
 type Middleware struct {
@@ -43,6 +44,8 @@ func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 		}
 
 		ctx := WithUser(r.Context(), user)
+		ctx = telemetry.WithActor(ctx, user.Username)
+		telemetry.SetRequestActor(ctx, user.Username)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -56,6 +59,8 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 				user, err := m.userRepo.GetByID(r.Context(), sess.UserID)
 				if err == nil && user != nil && user.IsActive {
 					ctx := WithUser(r.Context(), user)
+					ctx = telemetry.WithActor(ctx, user.Username)
+					telemetry.SetRequestActor(ctx, user.Username)
 					r = r.WithContext(ctx)
 				}
 			}
