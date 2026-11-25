@@ -15,6 +15,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 )
 
@@ -79,12 +80,14 @@ func (m *Module) apiSchema(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, httpx.CodeBadRequest, "ID database tidak valid")
 		return
 	}
-	db, err := m.Conns.Pool(r.Context(), id)
+	ctx := telemetry.WithDatabaseID(r.Context(), id)
+	ctx = telemetry.WithExecMeta(ctx, telemetry.ExecMeta{Action: "read_only_schema", ReadOnly: true})
+	db, err := m.Conns.Pool(ctx, id)
 	if err != nil {
 		writeDBError(w, r, err)
 		return
 	}
-	rows, err := db.QueryContext(r.Context(), `SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog','information_schema') AND schema_name NOT LIKE 'pg_toast%' ORDER BY schema_name`)
+	rows, err := telemetry.QuerySQL(ctx, db, `SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog','information_schema','_if3110_meta') AND schema_name NOT LIKE 'pg_toast%' ORDER BY schema_name`)
 	if err != nil {
 		httpx.Internal(w, r, err)
 		return
@@ -120,7 +123,7 @@ func (m *Module) apiSchema(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusBadRequest, httpx.CodeBadRequest, "Schema tidak ditemukan")
 			return
 		}
-		tables, err := inspectTablesContext(r.Context(), db, selected)
+		tables, err := inspectTablesContext(ctx, db, selected)
 		if err != nil {
 			httpx.Internal(w, r, err)
 			return
@@ -131,7 +134,7 @@ func (m *Module) apiSchema(w http.ResponseWriter, r *http.Request) {
 }
 
 func inspectTablesContext(ctx context.Context, db *sql.DB, schema string) ([]Table, error) {
-	rows, err := db.QueryContext(ctx, `SELECT table_name, table_type FROM information_schema.tables WHERE table_schema=$1 ORDER BY table_name`, schema)
+	rows, err := telemetry.QuerySQL(ctx, db, `SELECT table_name, table_type FROM information_schema.tables WHERE table_schema=$1 ORDER BY table_name`, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +148,7 @@ func inspectTablesContext(ctx context.Context, db *sql.DB, schema string) ([]Tab
 		t.Columns = []Column{}
 		t.Constraints = []Constraint{}
 		t.Indexes = []Index{}
-		cr, err := db.QueryContext(ctx, `SELECT column_name, data_type, is_nullable='YES', column_default, ordinal_position FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position`, schema, t.Name)
+		cr, err := telemetry.QuerySQL(ctx, db, `SELECT column_name, data_type, is_nullable='YES', column_default, ordinal_position FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position`, schema, t.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +169,7 @@ func inspectTablesContext(ctx context.Context, db *sql.DB, schema string) ([]Tab
 			return nil, err
 		}
 		cr.Close()
-		kr, err := db.QueryContext(ctx, `SELECT tc.constraint_name, tc.constraint_type, pg_get_constraintdef(c.oid) FROM information_schema.table_constraints tc JOIN pg_constraint c ON c.conname=tc.constraint_name JOIN pg_class rel ON rel.oid=c.conrelid AND rel.relname=tc.table_name JOIN pg_namespace n ON n.oid=rel.relnamespace AND n.nspname=tc.table_schema WHERE tc.table_schema=$1 AND tc.table_name=$2 ORDER BY tc.constraint_name`, schema, t.Name)
+		kr, err := telemetry.QuerySQL(ctx, db, `SELECT tc.constraint_name, tc.constraint_type, pg_get_constraintdef(c.oid) FROM information_schema.table_constraints tc JOIN pg_constraint c ON c.conname=tc.constraint_name JOIN pg_class rel ON rel.oid=c.conrelid AND rel.relname=tc.table_name JOIN pg_namespace n ON n.oid=rel.relnamespace AND n.nspname=tc.table_schema WHERE tc.table_schema=$1 AND tc.table_name=$2 ORDER BY tc.constraint_name`, schema, t.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +186,7 @@ func inspectTablesContext(ctx context.Context, db *sql.DB, schema string) ([]Tab
 			return nil, err
 		}
 		kr.Close()
-		ir, err := db.QueryContext(ctx, `SELECT indexname, indexdef FROM pg_indexes WHERE schemaname=$1 AND tablename=$2 ORDER BY indexname`, schema, t.Name)
+		ir, err := telemetry.QuerySQL(ctx, db, `SELECT indexname, indexdef FROM pg_indexes WHERE schemaname=$1 AND tablename=$2 ORDER BY indexname`, schema, t.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -237,13 +240,15 @@ func (m *Module) apiTableData(w http.ResponseWriter, r *http.Request) {
 	if offset < 0 {
 		offset = 0
 	}
-	db, err := m.Conns.Pool(r.Context(), id)
+	ctx := telemetry.WithDatabaseID(r.Context(), id)
+	ctx = telemetry.WithExecMeta(ctx, telemetry.ExecMeta{Action: "read_only_data", ReadOnly: true})
+	db, err := m.Conns.Pool(ctx, id)
 	if err != nil {
 		writeDBError(w, r, err)
 		return
 	}
 	var exists bool
-	err = db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=$1 AND table_name=$2 AND table_schema NOT IN ('pg_catalog','information_schema') AND table_schema NOT LIKE 'pg_toast%' AND table_type IN ('BASE TABLE','VIEW'))`, schema, table).Scan(&exists)
+	err = telemetry.QueryRowScan(ctx, db, `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=$1 AND table_name=$2 AND table_schema NOT IN ('pg_catalog','information_schema','_if3110_meta') AND table_schema NOT LIKE 'pg_toast%' AND table_type IN ('BASE TABLE','VIEW'))`, []any{schema, table}, &exists)
 	if err != nil {
 		httpx.Internal(w, r, err)
 		return
@@ -254,12 +259,12 @@ func (m *Module) apiTableData(w http.ResponseWriter, r *http.Request) {
 	}
 	qname := pq.QuoteIdentifier(schema) + "." + pq.QuoteIdentifier(table)
 	var total int64
-	if err := db.QueryRowContext(r.Context(), "SELECT count(*) FROM "+qname).Scan(&total); err != nil {
+	if err := telemetry.QueryRowScan(ctx, db, "SELECT count(*) FROM "+qname, nil, &total); err != nil {
 		httpx.Internal(w, r, err)
 		return
 	}
 	var pkCol string
-	_ = db.QueryRowContext(r.Context(), `
+	_ = telemetry.QueryRowScan(ctx, db, `
 		SELECT kcu.column_name 
 		FROM information_schema.table_constraints tc 
 		JOIN information_schema.key_column_usage kcu 
@@ -269,7 +274,7 @@ func (m *Module) apiTableData(w http.ResponseWriter, r *http.Request) {
 		  AND tc.table_schema = $1 
 		  AND tc.table_name = $2 
 		ORDER BY kcu.ordinal_position 
-		LIMIT 1`, schema, table).Scan(&pkCol)
+		LIMIT 1`, []any{schema, table}, &pkCol)
 
 	dataQuery := "SELECT * FROM " + qname
 	if pkCol != "" {
@@ -277,7 +282,7 @@ func (m *Module) apiTableData(w http.ResponseWriter, r *http.Request) {
 	}
 	dataQuery += " LIMIT $1 OFFSET $2"
 
-	rows, err := db.QueryContext(r.Context(), dataQuery, limit, offset)
+	rows, err := telemetry.QuerySQL(ctx, db, dataQuery, limit, offset)
 	if err != nil {
 		httpx.Internal(w, r, err)
 		return
