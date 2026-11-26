@@ -1,5 +1,6 @@
 docs/
 node_modules/
+client/dist/
 
 # Binaries and build artifacts
 *.exe
