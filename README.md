@@ -51,7 +51,7 @@ Buka `http://localhost:5173` (seluruh request `/api/*` otomatis di-proxy ke `htt
 
 Skema database platform dibuat otomatis waktu server start. Docker Compose juga menyiapkan database contoh `sample_db` (user dan password `sample_app`) yang bisa ditambahkan sebagai koneksi dari halaman admin.
 
-Kalau mau isi user dan group contoh, jalankan `go run ./cmd/devseed` dari folder `server`. Password user contohnya muncul di akhir output.
+Kalau mau isi user dan group contoh, jalankan `go run ./cmd/devseed` dari folder `server`. Password user contohnya muncul di akhir output. Devseed juga menetapkan leader: `alice` (Analyst, View Only) dan `bob` (Backend Dev, View + Edit), jadi perubahan pada `Sample DB` butuh approval keduanya.
 
 Environment variable yang dipakai:
 
@@ -63,7 +63,7 @@ Environment variable yang dipakai:
 | `APP_ENCRYPTION_KEY` | kunci development                                                         | Kunci enkripsi password koneksi, wajib diisi di production (`openssl rand -base64 32`) |
 | `EMBEDDED_WORKER`    | `true`                                                                    | Jalankan worker queue di dalam proses server (`false` jika menjalankan `cmd/worker`)   |
 | `WORKER_CONCURRENCY` | `4`                                                                       | Jumlah goroutine worker paralel                                                        |
-| `REQUIRE_APPROVAL`   | `false`                                                                   | Aktifkan kewajiban approval leader group sebelum enqueue migration                     |
+| `REQUIRE_APPROVAL`   | `true`                                                                    | Kewajiban approval leader setiap group sebelum enqueue migration (`false` = informasional) |
 | `SPA_DIST_DIR`       | `../client/dist`                                                          | Direktori hasil build SPA yang di-serve server Go                                      |
 | `SERVE_SPA`          | otomatis (`true` jika `dist/index.html` ada)                              | Set `false` hanya jika perlu fallback ke template lama                                 |
 
@@ -109,6 +109,25 @@ Hal lain yang perlu diketahui:
 - Kalau server mati di tengah migration, record yang masih `running` diubah jadi `failed` waktu server nyala lagi. Cek manual database target-nya untuk memastikan perubahannya sudah masuk atau belum.
 - Bonus: `EXPLAIN` / `EXPLAIN ANALYZE` menampilkan jenis scan, index, join, cost, waktu, dan jumlah row. Mode `ANALYZE` selalu di-rollback dan dibatasi 10 detik per statement.
 
+## Workflow & Approval (Milestone 2)
+
+Alur: `Draft → Pending Review → Approved → Pending (Queue) → Running → Success / Failed`.
+
+- Setiap group punya **leader** (ditetapkan admin lewat `PUT /api/admin/groups/{id}/leader`; leader wajib anggota aktif). Kalau leader dikeluarkan dari group, leader otomatis kosong.
+- Setiap perubahan database (`up`/`batch_up`, `rollback`, `forward`, `batch_resume`, `batch_revert`) diajukan lewat `POST .../definitions/{id}/approval-requests` dan wajib di-approve **leader setiap group** yang punya akses ke database itu, baik View Only maupun View + Edit. Kalau ada group tanpa leader, pengajuan ditolak (`group_leader_missing`).
+- Satu leader yang memimpin beberapa group cukup approve sekali. Satu reject (wajib alasan) langsung menolak pengajuan.
+- Approval terikat ke revisi definisi. Kalau definisi diedit, approval lama jadi `superseded` dan workflow kembali ke `draft`.
+- Approval dipakai sekali: saat enqueue, approval di-*consume* secara atomik (aman terhadap request paralel) dan diikat ke `idempotency_key` job. Rollback/forward berikutnya butuh approval baru. Worker merevalidasi approval di bawah lock.
+- Endpoint eksekusi sinkron M1 (`POST /api/databases/{id}/migrations`) ditolak saat `REQUIRE_APPROVAL=true`; seluruh perubahan lewat queue.
+- Semua kejadian approval dicatat sebagai log JSON (`approval.requested`, `approval.decided`, `approval.consumed`, `approval.superseded`) lengkap dengan `trace_id`, `actor`, dan `database_id`.
+
+Riwayat (Data History):
+
+- `GET /api/databases/{id}/migrations/executions` mendukung filter `migration_id`, `status`, `action`, `actor`, `since`, `until`, `limit`, `offset`, plus `summary`. Filter diterapkan setelah `hide_rollback` sehingga pasangan eksekusi–rollback tetap ditentukan dari execution ID.
+- `GET /api/databases/{id}/migrations/definitions/{mid}/history` menampilkan timeline satu migration: definisi, semua attempt (termasuk gagal), dan semua pengajuan approval.
+
+Detail kontrak ada di `api_contract.md` bagian 2.
+
 ## Testing
 
 Unit test dan integration test butuh PostgreSQL yang sudah jalan (`docker compose up -d`):
@@ -126,7 +145,7 @@ Ada juga smoketest end-to-end yang dites ke server yang lagi jalan. Jalankan `de
 go run ./cmd/smoketest
 ```
 
-Smoketest ini mengecek alur dari login sampai migration dan viewer. Selain itu juga mengecek beberapa kasus yang harus gagal: password salah, token CSRF kosong atau palsu, user biasa buka endpoint admin, cookie session palsu, rollback migration yang error, dan EXPLAIN untuk DDL.
+Smoketest memakai endpoint migration sinkron M1, jadi jalankan server dengan `REQUIRE_APPROVAL=false` saat menjalankan smoketest. Smoketest ini mengecek alur dari login sampai migration dan viewer. Selain itu juga mengecek beberapa kasus yang harus gagal: password salah, token CSRF kosong atau palsu, user biasa buka endpoint admin, cookie session palsu, rollback migration yang error, dan EXPLAIN untuk DDL.
 
 ## Struktur folder
 
@@ -142,7 +161,8 @@ server/
     authz, admin, connmgr,        hak akses, group, koneksi database,
     secretbox, store              enkripsi password koneksi
     dbmanager                     viewer schema dan data
-    migration, queue, dblock      engine migration, batching, async queue, lock
+    migration, queue, dblock      engine migration, batching, async queue, lock, filter riwayat
+    approval                      workflow & multi-group leader approval
     telemetry                     structured JSON logging (slog) & OpenTelemetry tracing
     web, httpx                    SPA static/fallback handler dan helper HTTP
   migrations/      skema database platform
