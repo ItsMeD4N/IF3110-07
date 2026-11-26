@@ -54,25 +54,127 @@ func mapErr(err error) error {
 }
 
 type Group struct {
-	ID          int64     `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	MemberCount int       `json:"member_count"`
-	GrantCount  int       `json:"grant_count"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	LeaderUserID   *string   `json:"leader_user_id"`
+	LeaderUsername *string   `json:"leader_username"`
+	MemberCount    int       `json:"member_count"`
+	GrantCount     int       `json:"grant_count"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 const groupSelect = `SELECT g.id, g.name, g.description,
+	g.leader_user_id::text, lu.username,
 	(SELECT count(*) FROM group_members m WHERE m.group_id = g.id),
 	(SELECT count(*) FROM group_database_grants x WHERE x.group_id = g.id),
 	g.created_at, g.updated_at
-	FROM user_groups g`
+	FROM user_groups g
+	LEFT JOIN users lu ON lu.id = g.leader_user_id`
 
 func scanGroup(sc interface{ Scan(...any) error }) (Group, error) {
 	var g Group
-	err := sc.Scan(&g.ID, &g.Name, &g.Description, &g.MemberCount, &g.GrantCount, &g.CreatedAt, &g.UpdatedAt)
+	var leaderID, leaderName sql.NullString
+	err := sc.Scan(&g.ID, &g.Name, &g.Description, &leaderID, &leaderName, &g.MemberCount, &g.GrantCount, &g.CreatedAt, &g.UpdatedAt)
+	if leaderID.Valid {
+		g.LeaderUserID = &leaderID.String
+	}
+	if leaderName.Valid {
+		g.LeaderUsername = &leaderName.String
+	}
 	return g, err
+}
+
+var ErrLeaderNotMember = errors.New("store: leader harus anggota group")
+
+func (s *Store) SetGroupLeader(ctx context.Context, groupID int64, userID string) (Group, error) {
+	if err := s.groupExists(ctx, groupID); err != nil {
+		return Group{}, err
+	}
+	var arg any
+	if userID != "" {
+		var member bool
+		if err := s.db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2::uuid)`,
+			groupID, userID).Scan(&member); err != nil {
+			return Group{}, mapErr(err)
+		}
+		if !member {
+			return Group{}, ErrLeaderNotMember
+		}
+		arg = userID
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE user_groups SET leader_user_id = $2::uuid, updated_at = now() WHERE id = $1`, groupID, arg); err != nil {
+		if errors.Is(mapErr(err), ErrReference) {
+			return Group{}, ErrLeaderNotMember
+		}
+		return Group{}, mapErr(err)
+	}
+	return s.GetGroup(ctx, groupID)
+}
+
+type GroupRef struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+func (s *Store) LedGroups(ctx context.Context, userID string) ([]GroupRef, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, name FROM user_groups WHERE leader_user_id = $1::uuid ORDER BY lower(name)`, userID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	defer rows.Close()
+	out := []GroupRef{}
+	for rows.Next() {
+		var g GroupRef
+		if err := rows.Scan(&g.ID, &g.Name); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+type DatabaseGroup struct {
+	GroupID        int64             `json:"group_id"`
+	GroupName      string            `json:"group_name"`
+	AccessLevel    authz.AccessLevel `json:"access_level"`
+	LeaderUserID   *string           `json:"leader_user_id"`
+	LeaderUsername *string           `json:"leader_username"`
+}
+
+func (s *Store) DatabaseGroups(ctx context.Context, databaseID int64) ([]DatabaseGroup, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT g.id, g.name, x.access_level, g.leader_user_id::text, lu.username
+		FROM group_database_grants x
+		JOIN user_groups g ON g.id = x.group_id
+		LEFT JOIN users lu ON lu.id = g.leader_user_id
+		WHERE x.connection_id = $1
+		ORDER BY lower(g.name)`, databaseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []DatabaseGroup{}
+	for rows.Next() {
+		var d DatabaseGroup
+		var lvl int
+		var lid, lname sql.NullString
+		if err := rows.Scan(&d.GroupID, &d.GroupName, &lvl, &lid, &lname); err != nil {
+			return nil, err
+		}
+		d.AccessLevel = authz.AccessLevel(lvl)
+		if lid.Valid {
+			d.LeaderUserID = &lid.String
+		}
+		if lname.Valid {
+			d.LeaderUsername = &lname.String
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) ListGroups(ctx context.Context) ([]Group, error) {

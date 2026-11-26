@@ -25,6 +25,7 @@ func (m *Module) registerAPI(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/groups/{groupID}", admin(authz.PermManageGroups, m.apiGetGroup))
 	mux.Handle("PUT /api/admin/groups/{groupID}", admin(authz.PermManageGroups, m.apiUpdateGroup))
 	mux.Handle("DELETE /api/admin/groups/{groupID}", admin(authz.PermManageGroups, m.apiDeleteGroup))
+	mux.Handle("PUT /api/admin/groups/{groupID}/leader", admin(authz.PermManageGroups, m.apiSetGroupLeader))
 
 	mux.Handle("GET /api/admin/groups/{groupID}/members", admin(authz.PermManageGroups, m.apiListMembers))
 	mux.Handle("POST /api/admin/groups/{groupID}/members", admin(authz.PermManageGroups, m.apiAddMember))
