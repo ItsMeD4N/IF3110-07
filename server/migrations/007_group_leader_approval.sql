@@ -1,8 +1,3 @@
--- Milestone 2: Group Leader + Migration Workflow & Multi-Group Leader Approval.
-
--- 1) Leader group. Leader wajib anggota group: composite FK ke group_members
---    sehingga saat anggota dikeluarkan / user dihapus, leader otomatis di-NULL-kan
---    (ON DELETE SET NULL (kolom) didukung sejak PostgreSQL 15).
 ALTER TABLE user_groups
     ADD COLUMN IF NOT EXISTS leader_user_id UUID NULL;
 
@@ -22,8 +17,6 @@ END $$;
 CREATE INDEX IF NOT EXISTS user_groups_leader_idx
     ON user_groups (leader_user_id) WHERE leader_user_id IS NOT NULL;
 
--- 2) Approval request: satu pengajuan perubahan (up/batch_up/rollback/forward/
---    batch_resume/batch_revert) terhadap revisi definisi migration tertentu.
 CREATE TABLE IF NOT EXISTS platform_approval_requests (
     id                       BIGSERIAL PRIMARY KEY,
     database_id              BIGINT      NOT NULL REFERENCES db_connections (id) ON DELETE CASCADE,
@@ -44,7 +37,6 @@ CREATE TABLE IF NOT EXISTS platform_approval_requests (
     updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Hanya boleh ada satu pengajuan terbuka (pending_review/approved) per migration + aksi.
 CREATE UNIQUE INDEX IF NOT EXISTS platform_approval_requests_open_uq
     ON platform_approval_requests (migration_id, action)
     WHERE status IN ('pending_review', 'approved');
@@ -56,8 +48,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS platform_approval_requests_consumed_key_uq
     ON platform_approval_requests (consumed_idempotency_key)
     WHERE consumed_idempotency_key IS NOT NULL;
 
--- 3) Keputusan per group yang memiliki akses (view_only maupun view_edit).
---    group_name & access_level disalin (snapshot) agar riwayat tetap utuh.
 CREATE TABLE IF NOT EXISTS platform_approval_decisions (
     id                 BIGSERIAL PRIMARY KEY,
     request_id         BIGINT      NOT NULL REFERENCES platform_approval_requests (id) ON DELETE CASCADE,
