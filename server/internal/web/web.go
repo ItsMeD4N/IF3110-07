@@ -34,11 +34,14 @@ func FindClientDir() (string, error) {
 		if c == "" {
 			continue
 		}
+		if st, err := os.Stat(filepath.Join(c, "dist", "index.html")); err == nil && !st.IsDir() {
+			return c, nil
+		}
 		if st, err := os.Stat(filepath.Join(c, "templates")); err == nil && st.IsDir() {
 			return c, nil
 		}
 	}
-	return "", fmt.Errorf("web: folder client/templates tidak ditemukan (set CLIENT_DIR)")
+	return "", fmt.Errorf("web: folder client (dist atau templates) tidak ditemukan (set CLIENT_DIR)")
 }
 
 func New(clientDir string, reload bool) (*Views, error) {
