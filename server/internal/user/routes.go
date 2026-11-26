@@ -246,6 +246,16 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if currentUser != nil && currentUser.ID == id && existing.IsPlatformAdmin && !req.IsPlatformAdmin {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": "Kamu tidak bisa mencabut status Platform Admin milik sendiri",
+			"code":  "validation_error",
+		})
+		return
+	}
+
 	err = h.userRepo.Update(r.Context(), id, req.Username, req.IsPlatformAdmin, req.IsActive)
 	if err != nil {
 		if errors.Is(err, auth.ErrUsernameTaken) {
