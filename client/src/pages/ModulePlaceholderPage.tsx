@@ -9,6 +9,7 @@ interface ModulePlaceholderPageProps {
   endpoints: string[];
   parentTo?: string;
   parentLabel?: string;
+  embedded?: boolean;
 }
 
 export function ModulePlaceholderPage({
@@ -17,6 +18,7 @@ export function ModulePlaceholderPage({
   endpoints,
   parentTo = '/databases',
   parentLabel = 'Database Saya',
+  embedded = false,
 }: ModulePlaceholderPageProps) {
   const { dbId } = useParams();
 
@@ -30,19 +32,21 @@ export function ModulePlaceholderPage({
 
   return (
     <div>
-      <PageHeader title={title} description={description} breadcrumbs={breadcrumbs} />
+      {!embedded && <PageHeader title={title} description={description} breadcrumbs={breadcrumbs} />}
       <EmptyState
         icon={Wrench}
-        title="Halaman siap diimplementasikan"
-        description={`Fondasi SPA, autentikasi, CSRF, dan service API untuk modul ini sudah terhubung (${endpoints.join(', ')}).`}
+        title={embedded ? `${title} siap diimplementasikan` : 'Halaman siap diimplementasikan'}
+        description={`${description} Endpoint terkait: ${endpoints.join(', ')}.`}
         action={
-          <Link
-            to={parentTo}
-            className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-surface px-3.5 py-1.5 text-sm font-medium text-ink no-underline hover:bg-surface-subtle"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>Kembali ke {parentLabel}</span>
-          </Link>
+          !embedded ? (
+            <Link
+              to={parentTo}
+              className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-surface px-3.5 py-1.5 text-sm font-medium text-ink no-underline hover:bg-surface-subtle"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <span>Kembali ke {parentLabel}</span>
+            </Link>
+          ) : undefined
         }
       />
     </div>

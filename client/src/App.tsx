@@ -1,7 +1,11 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { PublicOnly, RequireAdmin, RequireAuth } from '@/components/RouteGuards';
+import { DatabaseLayout } from '@/components/layout/DatabaseLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { DatabasesPage } from '@/pages/DatabasesPage';
+import { DatabaseOverviewPage } from '@/pages/database/DatabaseOverviewPage';
+import { DatabaseViewerPage } from '@/pages/database/DatabaseViewerPage';
+import { MigrationDefinitionsPage } from '@/pages/database/MigrationDefinitionsPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { AdminGroupsPage } from '@/pages/admin/AdminGroupsPage';
 import { AdminGroupDetailPage } from '@/pages/admin/AdminGroupDetailPage';
@@ -19,67 +23,44 @@ export function App() {
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Navigate to="/databases" replace />} />
         <Route path="/databases" element={<DatabasesPage />} />
-        <Route
-          path="/databases/:dbId"
-          element={
-            <ModulePlaceholderPage
-              title="Ringkasan Database"
-              description="Status koneksi target, informasi lock aktif, hak akses efektif, dan pintasan menuju viewer, migrations, dan jobs."
-              endpoints={['GET /api/databases/:dbId', 'GET /api/databases/:dbId/status', 'GET /api/databases/:dbId/lock']}
-            />
-          }
-        />
-        <Route
-          path="/databases/:dbId/viewer"
-          element={
-            <ModulePlaceholderPage
-              title="Database Viewer"
-              description="Eksplorasi schema, tabel, kolom, constraint, index, serta pagination isi tabel PostgreSQL."
-              endpoints={['GET /api/databases/:dbId/schema', 'GET /api/databases/:dbId/tables/:table/data']}
-            />
-          }
-        />
-        <Route
-          path="/databases/:dbId/migrations"
-          element={
-            <ModulePlaceholderPage
-              title="Migration Definitions & Editor"
-              description="Buat/edit definisi SQL up/down (atau irreversible), mode normal/batch, EXPLAIN/EXPLAIN ANALYZE, ajukan review, serta eksekusi async."
-              endpoints={[
-                'GET/POST /api/databases/:dbId/migrations/definitions',
-                'POST .../execute',
-                'POST .../rollback',
-                'POST .../forward',
-                'POST .../explain',
-              ]}
-            />
-          }
-        />
-        <Route
-          path="/databases/:dbId/migrations/history"
-          element={
-            <ModulePlaceholderPage
-              title="Migration Execution History"
-              description="Riwayat lengkap eksekusi (sukses, gagal, rollback, forward, batch) dengan filter Hide rollback dan detail SQL."
-              endpoints={[
-                'GET /api/databases/:dbId/migrations/executions?hide_rollback=...',
-                'POST .../resume',
-                'POST .../revert',
-                'POST .../reconcile',
-              ]}
-            />
-          }
-        />
-        <Route
-          path="/databases/:dbId/jobs"
-          element={
-            <ModulePlaceholderPage
-              title="Async Jobs & Lock Monitor"
-              description="Pantau antrean job migration, progres batch & checkpoint secara live, serta status lock database."
-              endpoints={['GET /api/databases/:dbId/jobs', 'GET /api/databases/:dbId/jobs/:jobId', 'GET /api/databases/:dbId/lock']}
-            />
-          }
-        />
+
+        <Route path="/databases/:dbId" element={<DatabaseLayout />}>
+          <Route index element={<DatabaseOverviewPage />} />
+          <Route path="viewer" element={<DatabaseViewerPage />} />
+          <Route path="migrations" element={<MigrationDefinitionsPage />} />
+          <Route
+            path="migrations/history"
+            element={
+              <ModulePlaceholderPage
+                embedded
+                title="Migration Execution History"
+                description="Riwayat lengkap eksekusi (sukses, gagal, rollback, forward, batch) dengan filter Hide rollback dan detail SQL."
+                endpoints={[
+                  'GET /api/databases/:dbId/migrations/executions?hide_rollback=...',
+                  'POST .../resume',
+                  'POST .../revert',
+                  'POST .../reconcile',
+                ]}
+              />
+            }
+          />
+          <Route
+            path="jobs"
+            element={
+              <ModulePlaceholderPage
+                embedded
+                title="Async Jobs & Lock Monitor"
+                description="Pantau antrean job migration, progres batch & checkpoint secara live, serta status lock database."
+                endpoints={[
+                  'GET /api/databases/:dbId/jobs',
+                  'GET /api/databases/:dbId/jobs/:jobId',
+                  'GET /api/databases/:dbId/lock',
+                ]}
+              />
+            }
+          />
+        </Route>
+
         <Route
           path="/approvals"
           element={
