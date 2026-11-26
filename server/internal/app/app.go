@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/admin"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/approval"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth/loginpage"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
@@ -43,6 +44,7 @@ type App struct {
 	Users      auth.UserRepository
 	Sessions   *session.Manager
 	Engine     *migration.Engine
+	Approvals  *approval.Service
 	Broker     queue.Broker
 	Locker     dblock.Locker
 	WorkerPool *queue.WorkerPool
@@ -92,6 +94,12 @@ func New(db *sql.DB, opt Options) (*App, error) {
 		LockTTL:         opt.LockTTL,
 	})
 
+	approvals := approval.NewService(db, engine, adminMod.Store, opt.RequireApproval)
+	engine.Workflow = approvals
+	if opt.ApprovalChecker == nil && opt.RequireApproval {
+		engine.ApprovalChecker = approvals
+	}
+
 	var pool *queue.WorkerPool
 	if !opt.DisableWorker {
 		concurrency := opt.WorkerConcurrency
@@ -140,6 +148,8 @@ func New(db *sql.DB, opt Options) (*App, error) {
 	migMod.Engine = engine
 	migMod.RegisterRoutes(mux)
 
+	(&approval.Handler{Svc: approvals, Engine: engine, MW: migMod.MW, AuthMW: migMod.AuthMW}).RegisterRoutes(mux)
+
 	if useSPA {
 		mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 			httpx.NotFound(w)
@@ -165,6 +175,7 @@ func New(db *sql.DB, opt Options) (*App, error) {
 		Users:      users,
 		Sessions:   sessions,
 		Engine:     engine,
+		Approvals:  approvals,
 		Broker:     broker,
 		Locker:     locker,
 		WorkerPool: pool,
