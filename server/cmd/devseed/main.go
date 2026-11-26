@@ -71,6 +71,10 @@ func main() {
 		_, err := st.AddMember(ctx, groups[m[0]], ids[m[1]])
 		must(err)
 	}
+	_, err = st.SetGroupLeader(ctx, groups["Analyst"], ids["alice"])
+	must(err)
+	_, err = st.SetGroupLeader(ctx, groups["Backend Dev"], ids["bob"])
+	must(err)
 
 	if target := os.Getenv("SEED_TARGET_URL"); target != "" {
 		c, err := connmgr.ConfigFromURL(target)
