@@ -1,8 +1,8 @@
 # IF3110-07 Database Management Platform
 
-Tugas Besar IF3110 Pengembangan Aplikasi Web 2026, Milestone 1.
+Tugas Besar IF3110 Pengembangan Aplikasi Web 2026 (Milestone 1 & Milestone 2).
 
-Aplikasi web buat ngatur akses ke database PostgreSQL yang dipakai bareng. Admin mengatur user, group, dan koneksi database. User bisa lihat schema dan data, lalu bikin dan jalankan migration sesuai hak aksesnya. Semua migration jalan di dalam transaksi dan tercatat di riwayat.
+Aplikasi web buat ngatur akses ke database PostgreSQL yang dipakai bareng. Admin mengatur user, group (+ leader group), dan koneksi database. User bisa lihat schema dan data, menyusun definisi migration (`up`/`down` atau `irreversible`, mode normal & batch), menjalankan `EXPLAIN`/`EXPLAIN ANALYZE`, mengajukan review approval, menjalankan migration/rollback/forward secara asynchronous lewat queue & worker, serta memantau progres batch dan riwayat lengkap (dengan filter `Hide rollback`).
 
 ## Anggota
 
@@ -14,21 +14,40 @@ Aplikasi web buat ngatur akses ke database PostgreSQL yang dipakai bareng. Admin
 
 ## Stack
 
-- Backend: Go 1.25 (`net/http`, `database/sql`, `lib/pq`)
-- Frontend: Go template (bukan SPA) dan sedikit JavaScript
+- Backend & Worker: Go 1.25 (`net/http`, `database/sql`, `lib/pq`, `log/slog`, OpenTelemetry)
+- Frontend: **Single-Page Application (SPA) responsif** — React 19 + TypeScript + Vite + Tailwind CSS v4 (`client/`)
 - Database: PostgreSQL 16 lewat Docker Compose
 
 ## Cara menjalankan
 
-Butuh Go 1.25+, Docker, dan Git.
+Butuh Go 1.25+, Node.js 20+, Docker, dan Git.
+
+### Mode Production / Single-Port (`http://localhost:8080`)
+
+Build SPA terlebih dahulu lalu jalankan server Go (server otomatis mendeteksi `client/dist/index.html` dan men-serve SPA beserta fallback deep-link):
 
 ```bash
 docker compose up -d
-cd server
+cd client
+npm install
+npm run build
+cd ../server
 go run .
 ```
 
 Buka `http://localhost:8080` lalu login pakai akun admin bawaan: `admin` / `Admin#Password123`.
+
+### Mode Development (Hot Reload SPA)
+
+Jalankan backend Go di terminal 1 (`cd server && go run .`) dan Vite dev server di terminal 2:
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Buka `http://localhost:5173` (seluruh request `/api/*` otomatis di-proxy ke `http://localhost:8080` agar cookie sesi `HttpOnly` dan `csrf_token` tetap same-origin).
 
 Skema database platform dibuat otomatis waktu server start. Docker Compose juga menyiapkan database contoh `sample_db` (user dan password `sample_app`) yang bisa ditambahkan sebagai koneksi dari halaman admin.
 
@@ -42,6 +61,11 @@ Environment variable yang dipakai:
 | `DATABASE_URL`       | `postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable` | Database platform                                                                      |
 | `APP_ENV`            | `development`                                                             | Isi `production` supaya cookie pakai `Secure`                                          |
 | `APP_ENCRYPTION_KEY` | kunci development                                                         | Kunci enkripsi password koneksi, wajib diisi di production (`openssl rand -base64 32`) |
+| `EMBEDDED_WORKER`    | `true`                                                                    | Jalankan worker queue di dalam proses server (`false` jika menjalankan `cmd/worker`)   |
+| `WORKER_CONCURRENCY` | `4`                                                                       | Jumlah goroutine worker paralel                                                        |
+| `REQUIRE_APPROVAL`   | `false`                                                                   | Aktifkan kewajiban approval leader group sebelum enqueue migration                     |
+| `SPA_DIST_DIR`       | `../client/dist`                                                          | Direktori hasil build SPA yang di-serve server Go                                      |
+| `SERVE_SPA`          | otomatis (`true` jika `dist/index.html` ada)                              | Set `false` hanya jika perlu fallback ke template lama                                 |
 
 ## Session
 
@@ -107,16 +131,20 @@ Smoketest ini mengecek alur dari login sampai migration dan viewer. Selain itu j
 ## Struktur folder
 
 ```
-client/            template HTML, CSS, JS
+client/
+  src/             SPA React + TypeScript + Vite + Tailwind (pages, components, services, context)
+  dist/            hasil build SPA produksi (di-serve langsung oleh server Go)
+  templates/       template legacy M1 (untuk kompatibilitas test M1)
 server/
-  cmd/             smoketest dan devseed
+  cmd/             worker, smoketest, dan devseed
   internal/
     auth, session, csrf, user     login, session, CSRF, kelola user
     authz, admin, connmgr,        hak akses, group, koneksi database,
     secretbox, store              enkripsi password koneksi
     dbmanager                     viewer schema dan data
-    migration                     migration dan EXPLAIN
-    web, httpx                    render halaman dan helper HTTP
+    migration, queue, dblock      engine migration, batching, async queue, lock
+    telemetry                     structured JSON logging (slog) & OpenTelemetry tracing
+    web, httpx                    SPA static/fallback handler dan helper HTTP
   migrations/      skema database platform
 docker/            data database contoh
 ```

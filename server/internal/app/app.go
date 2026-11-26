@@ -14,6 +14,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/dblock"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/dbmanager"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/migration"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/queue"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
@@ -25,6 +26,8 @@ import (
 type Options struct {
 	AppEnv            string
 	ClientDir         string
+	SPADir            string
+	ServeSPA          bool
 	EncryptionKey     []byte
 	DatabaseDSN       string
 	WorkerConcurrency int
@@ -49,9 +52,19 @@ type App struct {
 func New(db *sql.DB, opt Options) (*App, error) {
 	isProd := opt.AppEnv == "production"
 
-	views, err := web.New(opt.ClientDir, !isProd)
-	if err != nil {
-		return nil, err
+	spaDir := opt.SPADir
+	if opt.ServeSPA && spaDir == "" {
+		spaDir = web.FindSPADir(opt.ClientDir)
+	}
+	useSPA := opt.ServeSPA && spaDir != ""
+
+	var views *web.Views
+	if !useSPA {
+		var err error
+		views, err = web.New(opt.ClientDir, !isProd)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	users := auth.NewUserRepository(db)
@@ -116,18 +129,26 @@ func New(db *sql.DB, opt Options) (*App, error) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "timestamp": time.Now().Format(time.RFC3339)})
 	})
-	mux.Handle("GET /static/", web.StaticHandler(opt.ClientDir))
 
 	auth.RegisterRoutes(mux, users, sessions)
 	user.RegisterRoutes(mux, users, sessions)
 	csrf.RegisterRoutes(mux)
-	loginpage.New(users, sessions, views).RegisterRoutes(mux)
 	adminMod.RegisterRoutes(mux)
 	dbmanager.New(adminMod.Conns, adminMod.Authz, users, sessions, views).RegisterRoutes(mux)
 
 	migMod := migration.New(db, adminMod.Conns, adminMod.Authz, users, sessions, views)
 	migMod.Engine = engine
 	migMod.RegisterRoutes(mux)
+
+	if useSPA {
+		mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+			httpx.NotFound(w)
+		})
+		mux.Handle("/", web.SPAHandler(spaDir))
+	} else {
+		mux.Handle("GET /static/", web.StaticHandler(opt.ClientDir))
+		loginpage.New(users, sessions, views).RegisterRoutes(mux)
+	}
 
 	var h http.Handler = mux
 	h = securityHeaders(h)

@@ -69,9 +69,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	spaDir := web.FindSPADir(clientDir)
+	serveSPA := spaDir != "" && os.Getenv("SERVE_SPA") != "false"
+
 	a, err := app.New(db, app.Options{
 		AppEnv:            cfg.AppEnv,
 		ClientDir:         clientDir,
+		SPADir:            spaDir,
+		ServeSPA:          serveSPA,
 		DatabaseDSN:       cfg.DatabaseURL,
 		WorkerConcurrency: cfg.WorkerConcurrency,
 		DisableWorker:     !cfg.EmbeddedWorker,
@@ -96,6 +101,8 @@ func main() {
 		telemetry.LogEvent(ctx, slog.LevelInfo, "server.started",
 			slog.String("addr", srv.Addr),
 			slog.String("env", cfg.AppEnv),
+			slog.Bool("spa_mode", serveSPA),
+			slog.String("spa_dir", spaDir),
 			slog.Bool("embedded_worker", cfg.EmbeddedWorker),
 			slog.Int("worker_concurrency", cfg.WorkerConcurrency),
 			slog.String("status", "running"),
