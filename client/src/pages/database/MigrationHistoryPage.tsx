@@ -8,6 +8,7 @@ import {
   Play,
   RefreshCw,
   RotateCcw,
+  Send,
   ShieldCheck,
   XCircle,
 } from 'lucide-react';
@@ -15,14 +16,16 @@ import { useDatabaseContext } from '@/components/layout/DatabaseLayout';
 import { useToast } from '@/context/ToastContext';
 import { ApiError } from '@/lib/api';
 import { formatDateTime, formatNumber, generateIdempotencyKey } from '@/lib/format';
+import * as approvalService from '@/services/approvals';
 import * as migrationService from '@/services/migrations';
-import type { MigrationExecution, MigrationJob } from '@/types/api';
+import type { MigrationAction, MigrationExecution, MigrationJob } from '@/types/api';
 import { LiveJobTracker } from '@/components/migration/LiveJobTracker';
 import { Alert } from '@/components/ui/Alert';
 import { Badge, StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FormDialog } from '@/components/ui/FormDialog';
 import { SkeletonLine } from '@/components/ui/Skeleton';
 import { TableShell } from '@/components/ui/TableShell';
 
@@ -64,6 +67,15 @@ export function MigrationHistoryPage() {
   const [runningRecovery, setRunningRecovery] = useState(false);
   const [actionError, setActionError] = useState<string>('');
   const [trackedJob, setTrackedJob] = useState<{ jobId: string; initialJob: MigrationJob } | null>(null);
+
+  // Batch recovery review submission (M2 approval contract)
+  const [reviewModal, setReviewModal] = useState<{
+    action: Extract<MigrationAction, 'batch_resume' | 'batch_revert'>;
+    exec: MigrationExecution;
+  } | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const tableCaptionId = useId();
   const checkpointsCaptionId = useId();
@@ -176,6 +188,36 @@ export function MigrationHistoryPage() {
       setActionError(err instanceof ApiError ? err.message : 'Gagal menjalankan aksi pemulihan.');
     } finally {
       setRunningRecovery(false);
+    }
+  };
+
+  const handleSubmitBatchReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewModal) return;
+    setReviewError('');
+    setSubmittingReview(true);
+    try {
+      await approvalService.submitApprovalRequest(database.id, reviewModal.exec.migration_id, {
+        action: reviewModal.action,
+        target_execution_id: reviewModal.exec.execution_id,
+        note: reviewNote.trim(),
+      });
+      pushToast(
+        'success',
+        `Permintaan review ${reviewModal.action} untuk #E${reviewModal.exec.execution_id} berhasil dikirim ke group leader.`,
+      );
+      setReviewModal(null);
+      setReviewNote('');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setReviewError(
+          'Endpoint approval-requests belum aktif di backend (lihat api_contract.md §2.2).',
+        );
+      } else {
+        setReviewError(err instanceof ApiError ? err.message : 'Gagal mengirim permintaan review.');
+      }
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -446,28 +488,56 @@ export function MigrationHistoryPage() {
                   {(canResume || canRevert || canReconcile) && (
                     <div className="flex flex-wrap items-center gap-2">
                       {canResume && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => setRecoveryTarget({ kind: 'resume', exec: detail })}
-                        >
-                          <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                          <span>Resume dari Checkpoint</span>
-                        </Button>
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setReviewModal({ action: 'batch_resume', exec: detail });
+                              setReviewNote('');
+                              setReviewError('');
+                            }}
+                          >
+                            <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Ajukan Review Resume</span>
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => setRecoveryTarget({ kind: 'resume', exec: detail })}
+                          >
+                            <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Resume dari Checkpoint</span>
+                          </Button>
+                        </>
                       )}
                       {canRevert && (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => setRecoveryTarget({ kind: 'revert', exec: detail })}
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                          <span>
-                            {detail.status === 'partially_reverted'
-                              ? 'Lanjutkan Batch Revert'
-                              : 'Batalkan Batch (Revert)'}
-                          </span>
-                        </Button>
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setReviewModal({ action: 'batch_revert', exec: detail });
+                              setReviewNote('');
+                              setReviewError('');
+                            }}
+                          >
+                            <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Ajukan Review Revert</span>
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => setRecoveryTarget({ kind: 'revert', exec: detail })}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>
+                              {detail.status === 'partially_reverted'
+                                ? 'Lanjutkan Batch Revert'
+                                : 'Batalkan Batch (Revert)'}
+                            </span>
+                          </Button>
+                        </>
                       )}
                       {canReconcile && (
                         <Button
@@ -678,6 +748,45 @@ export function MigrationHistoryPage() {
         onConfirm={() => void handleConfirmRecovery()}
         onCancel={() => setRecoveryTarget(null)}
       />
+
+      <FormDialog
+        open={Boolean(reviewModal)}
+        title={`Ajukan Review ${reviewModal?.action ?? ''} — #E${reviewModal?.exec.execution_id ?? ''}`}
+        description="Sesuai spesifikasi Milestone 2, aksi batch resume dan batch revert tetap mengikuti permission, validasi, dan approval leader setiap group."
+        busy={submittingReview}
+        onClose={() => setReviewModal(null)}
+      >
+        {reviewError && (
+          <Alert variant="error" className="mb-4">
+            {reviewError}
+          </Alert>
+        )}
+        <form onSubmit={(e) => void handleSubmitBatchReview(e)} className="space-y-4" noValidate>
+          <div className="space-y-1">
+            <label htmlFor="batch-review-note" className="block text-sm font-medium text-ink">
+              Catatan untuk Group Leader (Opsional)
+            </label>
+            <textarea
+              id="batch-review-note"
+              name="note"
+              rows={3}
+              value={reviewNote}
+              onChange={(e) => setReviewNote(e.target.value)}
+              placeholder="Jelaskan kondisi checkpoint terakhir dan rencana pemulihan."
+              className="w-full rounded-md border border-border bg-surface p-2.5 text-sm text-ink"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" disabled={submittingReview} onClick={() => setReviewModal(null)}>
+              Batal
+            </Button>
+            <Button type="submit" variant="primary" loading={submittingReview}>
+              <Send className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Kirim Permintaan Review</span>
+            </Button>
+          </div>
+        </form>
+      </FormDialog>
     </div>
   );
 }

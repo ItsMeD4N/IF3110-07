@@ -24,6 +24,7 @@ import type {
   MigrationDefinitionInput,
   MigrationJob,
 } from '@/types/api';
+import { ApprovalPanel } from '@/components/migration/ApprovalPanel';
 import { ExplainPanel } from '@/components/migration/ExplainPanel';
 import { LiveJobTracker } from '@/components/migration/LiveJobTracker';
 import { Alert } from '@/components/ui/Alert';
@@ -989,6 +990,15 @@ export function MigrationDefinitionsPage() {
               </div>
             )}
           </form>
+
+          {mode === 'inspect' && selectedDef && (
+            <ApprovalPanel
+              dbId={database.id}
+              definition={selectedDef}
+              canEdit={canEdit}
+              onStatusUpdated={loadDefinitions}
+            />
+          )}
         </section>
       </div>
 

@@ -3,6 +3,7 @@ import { PublicOnly, RequireAdmin, RequireAuth } from '@/components/RouteGuards'
 import { DatabaseLayout } from '@/components/layout/DatabaseLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { DatabasesPage } from '@/pages/DatabasesPage';
+import { ApprovalsPage } from '@/pages/ApprovalsPage';
 import { DatabaseOverviewPage } from '@/pages/database/DatabaseOverviewPage';
 import { DatabaseViewerPage } from '@/pages/database/DatabaseViewerPage';
 import { MigrationDefinitionsPage } from '@/pages/database/MigrationDefinitionsPage';
@@ -12,7 +13,6 @@ import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { AdminGroupsPage } from '@/pages/admin/AdminGroupsPage';
 import { AdminGroupDetailPage } from '@/pages/admin/AdminGroupDetailPage';
 import { AdminConnectionsPage } from '@/pages/admin/AdminConnectionsPage';
-import { ModulePlaceholderPage } from '@/pages/ModulePlaceholderPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 export function App() {
@@ -34,16 +34,7 @@ export function App() {
           <Route path="jobs" element={<DatabaseJobsPage />} />
         </Route>
 
-        <Route
-          path="/approvals"
-          element={
-            <ModulePlaceholderPage
-              title="Approval Workflow"
-              description="Daftar permintaan review migration/rollback/forward yang menunggu persetujuan leader setiap group."
-              endpoints={['GET /api/approvals/pending', 'POST .../approve', 'POST .../reject']}
-            />
-          }
-        />
+        <Route path="/approvals" element={<ApprovalsPage />} />
 
         <Route element={<RequireAdmin />}>
           <Route path="/admin/users" element={<AdminUsersPage />} />
