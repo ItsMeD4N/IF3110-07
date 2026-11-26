@@ -6,6 +6,8 @@ import { DatabasesPage } from '@/pages/DatabasesPage';
 import { DatabaseOverviewPage } from '@/pages/database/DatabaseOverviewPage';
 import { DatabaseViewerPage } from '@/pages/database/DatabaseViewerPage';
 import { MigrationDefinitionsPage } from '@/pages/database/MigrationDefinitionsPage';
+import { MigrationHistoryPage } from '@/pages/database/MigrationHistoryPage';
+import { DatabaseJobsPage } from '@/pages/database/DatabaseJobsPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { AdminGroupsPage } from '@/pages/admin/AdminGroupsPage';
 import { AdminGroupDetailPage } from '@/pages/admin/AdminGroupDetailPage';
@@ -28,37 +30,8 @@ export function App() {
           <Route index element={<DatabaseOverviewPage />} />
           <Route path="viewer" element={<DatabaseViewerPage />} />
           <Route path="migrations" element={<MigrationDefinitionsPage />} />
-          <Route
-            path="migrations/history"
-            element={
-              <ModulePlaceholderPage
-                embedded
-                title="Migration Execution History"
-                description="Riwayat lengkap eksekusi (sukses, gagal, rollback, forward, batch) dengan filter Hide rollback dan detail SQL."
-                endpoints={[
-                  'GET /api/databases/:dbId/migrations/executions?hide_rollback=...',
-                  'POST .../resume',
-                  'POST .../revert',
-                  'POST .../reconcile',
-                ]}
-              />
-            }
-          />
-          <Route
-            path="jobs"
-            element={
-              <ModulePlaceholderPage
-                embedded
-                title="Async Jobs & Lock Monitor"
-                description="Pantau antrean job migration, progres batch & checkpoint secara live, serta status lock database."
-                endpoints={[
-                  'GET /api/databases/:dbId/jobs',
-                  'GET /api/databases/:dbId/jobs/:jobId',
-                  'GET /api/databases/:dbId/lock',
-                ]}
-              />
-            }
-          />
+          <Route path="migrations/history" element={<MigrationHistoryPage />} />
+          <Route path="jobs" element={<DatabaseJobsPage />} />
         </Route>
 
         <Route
