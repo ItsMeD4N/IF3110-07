@@ -32,7 +32,7 @@ func LoadConfig() *Config {
 		LogLevel:          getEnv("LOG_LEVEL", "info"),
 		WorkerConcurrency: getEnvInt("WORKER_CONCURRENCY", 4),
 		EmbeddedWorker:    getEnvBool("EMBEDDED_WORKER", true),
-		RequireApproval:   getEnvBool("REQUIRE_APPROVAL", false),
+		RequireApproval:   getEnvBool("REQUIRE_APPROVAL", true),
 		OTelServiceName:   getEnv("OTEL_SERVICE_NAME", "if3110-db-platform"),
 		OTelExporter:      getEnv("OTEL_TRACES_EXPORTER", defaultExporter),
 		OTelOTLPEndpoint:  getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4318"),
