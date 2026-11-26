@@ -60,3 +60,34 @@ func TestApply_ConcurrentAndIdempotent(t *testing.T) {
 		t.Fatal("kolom sessions.rotation_required tidak ada setelah migrasi")
 	}
 }
+
+func TestApply_RenamesOldVersions(t *testing.T) {
+	db, err := database.InitDB(databaseURL())
+	if err != nil {
+		t.Fatalf("Gagal terhubung ke DB: %v", err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+
+	if err := migrations.Apply(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE platform_schema_migrations SET version = '001_orang_a_users_sessions', applied_at = '2001-01-01T00:00:00Z' WHERE version = '001_users_sessions'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrations.Apply(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+
+	var oldCount int
+	if err := db.QueryRow(`SELECT count(*) FROM platform_schema_migrations WHERE version = '001_orang_a_users_sessions'`).Scan(&oldCount); err != nil {
+		t.Fatal(err)
+	}
+	var year int
+	if err := db.QueryRow(`SELECT extract(year FROM applied_at)::int FROM platform_schema_migrations WHERE version = '001_users_sessions'`).Scan(&year); err != nil {
+		t.Fatal(err)
+	}
+	if oldCount != 0 || year != 2001 {
+		t.Fatalf("versi lama tidak diganti nama: sisa versi lama %d, tahun applied_at %d", oldCount, year)
+	}
+}

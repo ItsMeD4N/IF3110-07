@@ -14,7 +14,8 @@ type SessionRepository interface {
 	CreateSession(ctx context.Context, s *Session) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (*Session, error)
 	UpdateIdleExpiry(ctx context.Context, id string, newIdleExpiry time.Time) error
-	RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time, updatedAt time.Time) error
+
+	RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time, updatedAt time.Time) (bool, error)
 	RevokeSession(ctx context.Context, tokenHash string) error
 	RevokeAllUserSessions(ctx context.Context, userID string) error
 	MarkRotationRequired(ctx context.Context, userIDs []string) error
@@ -127,7 +128,7 @@ func (r *postgresSessionRepository) UpdateIdleExpiry(ctx context.Context, id str
 	return nil
 }
 
-func (r *postgresSessionRepository) RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time, updatedAt time.Time) error {
+func (r *postgresSessionRepository) RotateSession(ctx context.Context, id string, newTokenHash string, oldTokenHash string, gracePeriodUntil time.Time, newIdleExpiry time.Time, updatedAt time.Time) (bool, error) {
 	query := `
 		UPDATE sessions
 		SET token_hash = $2,
@@ -136,13 +137,17 @@ func (r *postgresSessionRepository) RotateSession(ctx context.Context, id string
 		    idle_expires_at = $5,
 		    updated_at = $6,
 		    rotation_required = FALSE
-		WHERE id = $1 AND is_revoked = FALSE
+		WHERE id = $1 AND token_hash = $3 AND is_revoked = FALSE
 	`
-	_, err := r.db.ExecContext(ctx, query, id, newTokenHash, oldTokenHash, gracePeriodUntil, newIdleExpiry, updatedAt)
+	res, err := r.db.ExecContext(ctx, query, id, newTokenHash, oldTokenHash, gracePeriodUntil, newIdleExpiry, updatedAt)
 	if err != nil {
-		return fmt.Errorf("gagal rotasi sesi: %w", err)
+		return false, fmt.Errorf("gagal rotasi sesi: %w", err)
 	}
-	return nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("gagal rotasi sesi: %w", err)
+	}
+	return n == 1, nil
 }
 
 func (r *postgresSessionRepository) RevokeSession(ctx context.Context, tokenHash string) error {

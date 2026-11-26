@@ -8,18 +8,21 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 )
 
-// ExplainRequest mendefinisikan payload untuk analisis query execution plan
+const explainStatementTimeout = 10 * time.Second
+
 type ExplainRequest struct {
 	SQL     string `json:"sql"`
-	Analyze bool   `json:"analyze"` // Jika true, jalankan EXPLAIN ANALYZE dalam safe transaction rollback
+	Analyze bool   `json:"analyze"`
 }
 
-// PlanNode merepresentasikan node dalam pohon execution plan PostgreSQL
 type PlanNode struct {
 	NodeType          string     `json:"node_type"`
 	RelationName      string     `json:"relation_name,omitempty"`
@@ -40,41 +43,37 @@ type PlanNode struct {
 	Plans             []PlanNode `json:"plans,omitempty"`
 }
 
-// PlanSummary merangkum poin-poin penting analisis sesuai spesifikasi tugas besar
 type PlanSummary struct {
-	ScanTypes      []string `json:"scan_types"`       // Jenis scan: Seq Scan, Index Scan, Bitmap Heap Scan, dll
-	IndexesUsed    []string `json:"indexes_used"`     // Index yang digunakan
-	JoinStrategies []string `json:"join_strategies"`  // Join strategy: Hash Join, Nested Loop, Merge Join, dll
-	StartupCost    float64  `json:"startup_cost"`     // Estimated cost awal
-	TotalCost      float64  `json:"total_cost"`       // Estimated cost total
-	ActualTimeMS   *float64 `json:"actual_time_ms,omitempty"`   // Actual execution time (ms) jika ANALYZE aktif
-	PlanningTimeMS *float64 `json:"planning_time_ms,omitempty"` // Planning time (ms)
-	RowsPlanned    int64    `json:"rows_planned"`               // Estimasi jumlah row
-	RowsProcessed  *int64   `json:"rows_processed,omitempty"`   // Jumlah row aktual yang diproses
-	HasSeqScan     bool     `json:"has_seq_scan"`               // Indikasi ada full table scan
-	Warnings       []string `json:"warnings"`                   // Saran optimasi / catatan performa
+	ScanTypes      []string `json:"scan_types"`
+	IndexesUsed    []string `json:"indexes_used"`
+	JoinStrategies []string `json:"join_strategies"`
+	StartupCost    float64  `json:"startup_cost"`
+	TotalCost      float64  `json:"total_cost"`
+	ActualTimeMS   *float64 `json:"actual_time_ms,omitempty"`
+	PlanningTimeMS *float64 `json:"planning_time_ms,omitempty"`
+	RowsPlanned    int64    `json:"rows_planned"`
+	RowsProcessed  *int64   `json:"rows_processed,omitempty"`
+	HasSeqScan     bool     `json:"has_seq_scan"`
+	Warnings       []string `json:"warnings"`
 }
 
-// SingleExplainResult menyimpan hasil analisis untuk satu statement SQL
 type SingleExplainResult struct {
-	Statement    string      `json:"statement"`
-	IsExplainable bool       `json:"is_explainable"`
-	Note         string      `json:"note,omitempty"`
-	AnalyzeMode  bool        `json:"analyze_mode"`
-	Summary      PlanSummary `json:"summary"`
-	RootNode     *PlanNode   `json:"root_node,omitempty"`
-	RawText      string      `json:"raw_text,omitempty"`
-	SafeRollback bool        `json:"safe_rollback"`
+	Statement     string      `json:"statement"`
+	IsExplainable bool        `json:"is_explainable"`
+	Note          string      `json:"note,omitempty"`
+	AnalyzeMode   bool        `json:"analyze_mode"`
+	Summary       PlanSummary `json:"summary"`
+	RootNode      *PlanNode   `json:"root_node,omitempty"`
+	RawText       string      `json:"raw_text,omitempty"`
+	SafeRollback  bool        `json:"safe_rollback"`
 }
 
-// ExplainResponse adalah respons menyeluruh dari endpoint EXPLAIN
 type ExplainResponse struct {
 	DatabaseID   int64                 `json:"database_id"`
 	TotalQueries int                   `json:"total_queries"`
 	Results      []SingleExplainResult `json:"results"`
 }
 
-// Struktur internal untuk unmarshaling output JSON dari PostgreSQL
 type rawWrapper struct {
 	Plan          rawNode  `json:"Plan"`
 	PlanningTime  *float64 `json:"Planning Time"`
@@ -93,18 +92,17 @@ type rawNode struct {
 	HashCond          string    `json:"Hash Cond"`
 	StartupCost       float64   `json:"Startup Cost"`
 	TotalCost         float64   `json:"Total Cost"`
-	PlanRows          int64     `json:"Plan Rows"`
+	PlanRows          float64   `json:"Plan Rows"`
 	ActualStartupTime *float64  `json:"Actual Startup Time"`
 	ActualTotalTime   *float64  `json:"Actual Total Time"`
-	ActualRows        *int64    `json:"Actual Rows"`
-	ActualLoops       *int64    `json:"Actual Loops"`
+	ActualRows        *float64  `json:"Actual Rows"`
+	ActualLoops       *float64  `json:"Actual Loops"`
 	Plans             []rawNode `json:"Plans"`
 }
 
-// apiExplain menangani request POST /api/databases/{dbID}/migrations/explain
 func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
-	id, ok := databaseID(r)
-	if !ok {
+	id := dbID(r)
+	if id <= 0 {
 		httpx.WriteError(w, http.StatusBadRequest, httpx.CodeBadRequest, "ID database tidak valid")
 		return
 	}
@@ -112,7 +110,6 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 	sqlText := ""
 	analyze := false
 
-	// Cek apakah request berupa form-urlencoded atau JSON
 	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {
 		var req ExplainRequest
@@ -141,17 +138,31 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Eksekusi analisis pada database target
+	access, _ := authz.DBAccessFrom(r.Context())
+	canExecute := access.Can(authz.PermDBExecuteMigration)
+	if analyze && !canExecute {
+		httpx.WriteError(w, http.StatusForbidden, httpx.CodeForbidden, "EXPLAIN ANALYZE benar-benar menjalankan query, jadi cuma bisa dipakai dengan akses View + Edit. Pakai EXPLAIN biasa saja.")
+		return
+	}
+
 	targetDB, err := m.Conns.Pool(r.Context(), id)
 	if err != nil {
 		writeDBError(w, r, err)
 		return
 	}
 
-	results, err := runExplain(r.Context(), targetDB, sqlText, analyze)
+	explainCtx := telemetry.WithDatabaseID(r.Context(), id)
+	if act := executor(r); act != "" {
+		explainCtx = telemetry.WithActor(explainCtx, act)
+	}
+	explainCtx = telemetry.WithExecMeta(explainCtx, telemetry.ExecMeta{
+		Action:   "explain",
+		ReadOnly: !analyze,
+	})
+	results, err := runExplain(explainCtx, targetDB, sqlText, analyze, !canExecute)
 	if err != nil {
 		httpx.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
-			"error":  "Gagal menganalisis query execution plan",
+			"error":  "EXPLAIN gagal dijalankan",
 			"detail": err.Error(),
 		})
 		return
@@ -164,8 +175,10 @@ func (m *Module) apiExplain(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// runExplain mengeksekusi EXPLAIN terhadap setiap statement SQL dalam transaksi aman dengan rollback
-func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) ([]SingleExplainResult, error) {
+func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze, readOnly bool) ([]SingleExplainResult, error) {
+	if analyze && readOnly {
+		return nil, fmt.Errorf("EXPLAIN ANALYZE tidak dapat dijalankan dalam mode read-only")
+	}
 	stmts := splitStatements(sqlText)
 	if len(stmts) == 0 {
 		return nil, fmt.Errorf("tidak ada statement SQL yang ditemukan")
@@ -190,13 +203,12 @@ func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) (
 			results = append(results, SingleExplainResult{
 				Statement:     clean,
 				IsExplainable: false,
-				Note:          fmt.Sprintf("Pernyataan '%s' merupakan DDL/Utility statement. PostgreSQL tidak menggunakan cost-based query optimizer untuk operasi DDL/Utility ini.", firstWord),
+				Note:          fmt.Sprintf("%s tidak punya execution plan, jadi dilewati.", firstWord),
 			})
 			continue
 		}
 
-		// Jalankan dalam transaksi dengan ROLLBACK agar EXPLAIN ANALYZE tidak mengubah state target!
-		res, err := explainSingleStatement(ctx, conn, clean, analyze)
+		res, err := explainSingleStatement(ctx, conn, clean, analyze, readOnly)
 		if err != nil {
 			return nil, fmt.Errorf("error pada statement '%s...': %w", truncate(clean, 40), err)
 		}
@@ -206,16 +218,19 @@ func runExplain(ctx context.Context, db *sql.DB, sqlText string, analyze bool) (
 	return results, nil
 }
 
-func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, analyze bool) (SingleExplainResult, error) {
-	// Buka transaksi eksplisit
-	tx, err := conn.BeginTx(ctx, nil)
+func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, analyze, readOnly bool) (SingleExplainResult, error) {
+	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: readOnly})
 	if err != nil {
 		return SingleExplainResult{}, err
 	}
-	// Pastikan SELALU di-rollback!
+
 	defer func() {
-		_ = tx.Rollback()
+		_ = telemetry.RollbackTx(ctx, tx, "explain_always_rollback")
 	}()
+
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", explainStatementTimeout.Milliseconds())); err != nil {
+		return SingleExplainResult{}, err
+	}
 
 	explainCmd := "EXPLAIN (VERBOSE, BUFFERS, COSTS, FORMAT JSON"
 	if analyze {
@@ -224,27 +239,8 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 	explainCmd += ") " + query
 
 	var jsonRaw string
-	if err := tx.QueryRowContext(ctx, explainCmd).Scan(&jsonRaw); err != nil {
+	if err := telemetry.QueryRowScan(ctx, tx, explainCmd, nil, &jsonRaw); err != nil {
 		return SingleExplainResult{}, err
-	}
-
-	// Ambil juga versi TEXT untuk DBA view
-	textCmd := "EXPLAIN (VERBOSE, BUFFERS, COSTS, FORMAT TEXT"
-	if analyze {
-		textCmd = "EXPLAIN (ANALYZE, VERBOSE, BUFFERS, COSTS, FORMAT TEXT"
-	}
-	textCmd += ") " + query
-
-	rows, err := tx.QueryContext(ctx, textCmd)
-	var textLines []string
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var line string
-			if err := rows.Scan(&line); err == nil {
-				textLines = append(textLines, line)
-			}
-		}
 	}
 
 	var wrappers []rawWrapper
@@ -265,12 +261,88 @@ func explainSingleStatement(ctx context.Context, conn *sql.Conn, query string, a
 		AnalyzeMode:   analyze,
 		Summary:       summary,
 		RootNode:      &rootNode,
-		RawText:       strings.Join(textLines, "\n"),
-		SafeRollback:  true, // Transaksi selalu di-rollback
+		RawText:       formatPlanText(w),
+		SafeRollback:  true,
 	}, nil
 }
 
+func formatPlanText(w rawWrapper) string {
+	var lines []string
+	var walk func(n rawNode, depth int)
+	walk = func(n rawNode, depth int) {
+		indent := ""
+		detailIndent := "  "
+		if depth > 0 {
+			indent = strings.Repeat("      ", depth-1) + "  ->  "
+			detailIndent = strings.Repeat("      ", depth) + "  "
+		}
+
+		label := n.NodeType
+		if n.IndexName != "" {
+			label += " using " + n.IndexName
+		}
+		if n.RelationName != "" {
+			rel := n.RelationName
+			if n.Schema != "" {
+				rel = n.Schema + "." + rel
+			}
+			label += " on " + rel
+			if n.Alias != "" && n.Alias != n.RelationName {
+				label += " " + n.Alias
+			}
+		}
+
+		line := fmt.Sprintf("%s%s  (cost=%.2f..%.2f rows=%d)", indent, label, n.StartupCost, n.TotalCost, int64(n.PlanRows))
+		if n.ActualTotalTime != nil && n.ActualRows != nil {
+			startup := 0.0
+			if n.ActualStartupTime != nil {
+				startup = *n.ActualStartupTime
+			}
+			loops := int64(1)
+			if n.ActualLoops != nil {
+				loops = int64(*n.ActualLoops)
+			}
+			line += fmt.Sprintf(" (actual time=%.3f..%.3f rows=%d loops=%d)", startup, *n.ActualTotalTime, int64(*n.ActualRows), loops)
+		}
+		lines = append(lines, line)
+
+		if n.HashCond != "" {
+			lines = append(lines, detailIndent+"Hash Cond: "+n.HashCond)
+		}
+		if n.IndexCond != "" {
+			lines = append(lines, detailIndent+"Index Cond: "+n.IndexCond)
+		}
+		if n.Filter != "" {
+			lines = append(lines, detailIndent+"Filter: "+n.Filter)
+		}
+
+		for _, child := range n.Plans {
+			walk(child, depth+1)
+		}
+	}
+	walk(w.Plan, 0)
+
+	if w.PlanningTime != nil {
+		lines = append(lines, fmt.Sprintf("Planning Time: %.3f ms", *w.PlanningTime))
+	}
+	if w.ExecutionTime != nil {
+		lines = append(lines, fmt.Sprintf("Execution Time: %.3f ms", *w.ExecutionTime))
+	}
+	return strings.Join(lines, "\n")
+}
+
 func convertNode(r rawNode) PlanNode {
+	var actualRows *int64
+	if r.ActualRows != nil {
+		v := int64(*r.ActualRows)
+		actualRows = &v
+	}
+	var actualLoops *int64
+	if r.ActualLoops != nil {
+		v := int64(*r.ActualLoops)
+		actualLoops = &v
+	}
+
 	n := PlanNode{
 		NodeType:          r.NodeType,
 		RelationName:      r.RelationName,
@@ -283,11 +355,11 @@ func convertNode(r rawNode) PlanNode {
 		HashCond:          r.HashCond,
 		StartupCost:       r.StartupCost,
 		TotalCost:         r.TotalCost,
-		PlanRows:          r.PlanRows,
+		PlanRows:          int64(r.PlanRows),
 		ActualStartupTime: r.ActualStartupTime,
 		ActualTotalTime:   r.ActualTotalTime,
-		ActualRows:        r.ActualRows,
-		ActualLoops:       r.ActualLoops,
+		ActualRows:        actualRows,
+		ActualLoops:       actualLoops,
 	}
 	for _, child := range r.Plans {
 		n.Plans = append(n.Plans, convertNode(child))
@@ -304,25 +376,23 @@ func buildSummary(w rawWrapper) PlanSummary {
 
 	var walk func(n rawNode)
 	walk = func(n rawNode) {
-		// 1. Jenis scan
+
 		if strings.Contains(n.NodeType, "Scan") {
 			if !containsStr(scanTypes, n.NodeType) {
 				scanTypes = append(scanTypes, n.NodeType)
 			}
 			if n.NodeType == "Seq Scan" && n.RelationName != "" {
 				hasSeqScan = true
-				warnings = append(warnings, fmt.Sprintf("Sequential Scan (full-table scan) terdeteksi pada tabel '%s'.", n.RelationName))
+				warnings = append(warnings, fmt.Sprintf("Ada Seq Scan di tabel %s.", n.RelationName))
 			}
 		}
 
-		// 2. Penggunaan index
 		if n.IndexName != "" {
 			if !containsStr(indexesUsed, n.IndexName) {
 				indexesUsed = append(indexesUsed, n.IndexName)
 			}
 		}
 
-		// 3. Join strategy
 		if strings.Contains(n.NodeType, "Join") || strings.Contains(n.NodeType, "Nested Loop") {
 			if !containsStr(joinStrategies, n.NodeType) {
 				joinStrategies = append(joinStrategies, n.NodeType)
@@ -337,7 +407,13 @@ func buildSummary(w rawWrapper) PlanSummary {
 	walk(w.Plan)
 
 	if w.Plan.TotalCost > 1000.0 {
-		warnings = append(warnings, fmt.Sprintf("Estimated Total Cost cukup tinggi (%.2f). Pertimbangkan optimasi query atau penambahan index.", w.Plan.TotalCost))
+		warnings = append(warnings, fmt.Sprintf("Total cost-nya cukup tinggi (%.2f), mungkin perlu index.", w.Plan.TotalCost))
+	}
+
+	var rowsProcessed *int64
+	if w.Plan.ActualRows != nil {
+		v := int64(*w.Plan.ActualRows)
+		rowsProcessed = &v
 	}
 
 	s := PlanSummary{
@@ -348,8 +424,8 @@ func buildSummary(w rawWrapper) PlanSummary {
 		TotalCost:      w.Plan.TotalCost,
 		PlanningTimeMS: w.PlanningTime,
 		ActualTimeMS:   w.ExecutionTime,
-		RowsPlanned:    w.Plan.PlanRows,
-		RowsProcessed:  w.Plan.ActualRows,
+		RowsPlanned:    int64(w.Plan.PlanRows),
+		RowsProcessed:  rowsProcessed,
 		HasSeqScan:     hasSeqScan,
 		Warnings:       warnings,
 	}
@@ -377,35 +453,6 @@ func isExplainable(word string) bool {
 	default:
 		return false
 	}
-}
-
-func splitStatements(sql string) []string {
-	var stmts []string
-	var current strings.Builder
-	inSingleQuote := false
-	inDoubleQuote := false
-
-	for i := 0; i < len(sql); i++ {
-		ch := sql[i]
-		if ch == '\'' && !inDoubleQuote {
-			inSingleQuote = !inSingleQuote
-		} else if ch == '"' && !inSingleQuote {
-			inDoubleQuote = !inDoubleQuote
-		}
-
-		if ch == ';' && !inSingleQuote && !inDoubleQuote {
-			if s := strings.TrimSpace(current.String()); s != "" {
-				stmts = append(stmts, s)
-			}
-			current.Reset()
-			continue
-		}
-		current.WriteByte(ch)
-	}
-	if s := strings.TrimSpace(current.String()); s != "" {
-		stmts = append(stmts, s)
-	}
-	return stmts
 }
 
 func cleanSQL(s string) string {

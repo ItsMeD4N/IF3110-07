@@ -5,9 +5,14 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"sync"
 	"testing"
+
+	"github.com/lib/pq"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
 	"github.com/ItsMeD4N/IF3110-07/server/migrations"
@@ -48,4 +53,64 @@ func Unique(prefix string) string {
 	b := make([]byte, 4)
 	_, _ = rand.Read(b)
 	return prefix + "_" + hex.EncodeToString(b)
+}
+
+const targetDatabaseName = "if3110_test_target"
+
+var (
+	targetOnce sync.Once
+	targetURL  string
+	targetErr  error
+)
+
+func TargetDatabaseURL(t testing.TB) string {
+	t.Helper()
+	targetOnce.Do(func() {
+		u, err := url.Parse(DatabaseURL())
+		if err != nil {
+			targetErr = err
+			return
+		}
+		db, err := sql.Open("postgres", u.String())
+		if err != nil {
+			targetErr = err
+			return
+		}
+		defer db.Close()
+		var exists bool
+		if targetErr = db.QueryRow(`SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)`, targetDatabaseName).Scan(&exists); targetErr != nil {
+			return
+		}
+		if !exists {
+			_, err := db.Exec(`CREATE DATABASE ` + targetDatabaseName)
+			var pqErr *pq.Error
+			if err != nil && !(errors.As(err, &pqErr) && (pqErr.Code == "42P04" || pqErr.Code == "23505")) {
+				targetErr = fmt.Errorf("buat database target test: %w", err)
+				return
+			}
+		}
+		u.Path = "/" + targetDatabaseName
+		targetURL = u.String()
+	})
+	if targetErr != nil {
+		t.Fatalf("database target test tidak tersedia: %v", targetErr)
+	}
+	return targetURL
+}
+
+func OpenTargetSchema(t testing.TB) (*sql.DB, string) {
+	t.Helper()
+	db, err := sql.Open("postgres", TargetDatabaseURL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := Unique("t")
+	if _, err := db.Exec(`CREATE SCHEMA ` + pq.QuoteIdentifier(schema)); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		db.Exec(`DROP SCHEMA ` + pq.QuoteIdentifier(schema) + ` CASCADE`)
+		db.Close()
+	})
+	return db, schema
 }

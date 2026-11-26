@@ -739,10 +739,56 @@ a:focus-visible {
 .db-card form {
   margin-top: auto;
 }
+.form-inline label.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  min-height: 38px;
+}
+.card form + form {
+  margin-top: 18px;
+}
 
-/* ==========================================================================
-   Modals & User Management Enhancements
-   ========================================================================== */
+.badge-success {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.badge-failed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.badge-running,
+.badge-draft {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+textarea.sql,
+pre.sql {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+pre.sql {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.table td.error-cell {
+  color: var(--danger);
+  font-size: 13px;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+.form-inline label.checkbox input {
+  min-height: 0;
+}
+.content > .page-actions {
+  margin-bottom: 20px;
+}
+
 .modal-backdrop {
   position: fixed;
   top: 0;
@@ -819,7 +865,6 @@ a:focus-visible {
   margin-top: 24px;
 }
 
-/* Form Groups & Inputs */
 .form-group {
   margin-bottom: 16px;
 }
@@ -851,7 +896,6 @@ a:focus-visible {
   cursor: pointer;
 }
 
-/* Stats Cards */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -885,7 +929,6 @@ a:focus-visible {
 .stat-value { font-size: 24px; font-weight: 700; color: var(--text); }
 .stat-label { font-size: 12px; color: var(--muted); font-weight: 500; }
 
-/* Cards & Tables */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -933,7 +976,6 @@ a:focus-visible {
   gap: 6px;
 }
 
-/* User Badges */
 .badge-admin {
   background: var(--accent-soft);
   color: var(--accent);
@@ -958,7 +1000,6 @@ a:focus-visible {
   border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
 }
 
-/* Buttons & Flash */
 .btn-warning {
   background: var(--warn);
   border-color: var(--warn);
@@ -993,4 +1034,3 @@ a:focus-visible {
   background: var(--ok-soft);
   color: var(--ok);
 }
-

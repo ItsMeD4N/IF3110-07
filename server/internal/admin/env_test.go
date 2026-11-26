@@ -225,7 +225,7 @@ func (e *testEnv) setGrant(admin *auth.User, groupID, connID int64, level string
 
 func realTarget(t *testing.T) map[string]any {
 	t.Helper()
-	c, err := connmgr.ConfigFromURL(testutil.DatabaseURL())
+	c, err := connmgr.ConfigFromURL(testutil.TargetDatabaseURL(t))
 	if err != nil {
 		t.Fatal(err)
 	}

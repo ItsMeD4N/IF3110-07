@@ -9,7 +9,7 @@
     <p class="muted">{{if $g.Description}}{{$g.Description}}{{else}}Tanpa deskripsi{{end}}</p>
   </div>
   <form method="post" action="/admin/groups/{{$g.ID}}/delete"
-        onsubmit="return confirm('Hapus group {{$g.Name}}? Semua anggota kehilangan akses yang diberikan group ini.')">
+        onsubmit="return confirm('Hapus group {{$g.Name}}? Anggotanya akan kehilangan akses dari group ini.')">
     {{$csrf}}
     <button class="btn btn-danger-ghost" type="submit">Hapus group</button>
   </form>
@@ -28,7 +28,7 @@
       <button class="btn btn-primary" type="submit">Tambah</button>
     </form>
     {{else}}
-    <p class="muted small">Semua user aktif sudah menjadi anggota.</p>
+    <p class="muted small">Semua user aktif sudah jadi anggota.</p>
     {{end}}
     {{if .Data.Members}}
     <ul class="list">
@@ -63,7 +63,7 @@
       <button class="btn btn-primary" type="submit">Beri akses</button>
     </form>
     {{else if not .Data.HasConnections}}
-    <p class="muted small">Belum ada koneksi database. <a href="/admin/connections/new">Tambah koneksi</a> terlebih dahulu.</p>
+    <p class="muted small">Belum ada koneksi database. <a href="/admin/connections/new">Tambah koneksi</a> dulu.</p>
     {{end}}
     {{if .Data.Grants}}
     <ul class="list">
@@ -92,7 +92,7 @@
     <div class="legend">
       <div><span class="badge badge-view_only">View Only</span> lihat schema, data, dan riwayat migration.</div>
       <div><span class="badge badge-view_edit">View + Edit</span> semua akses View Only + membuat, mengubah, dan menjalankan migration.</div>
-      <div class="muted small">Jika user ada di beberapa group yang mengakses database yang sama, berlaku tingkat <strong>tertinggi</strong>.</div>
+      <div class="muted small">Kalau user ada di beberapa group untuk database yang sama, yang dipakai level tertinggi.</div>
     </div>
   </section>
 </div>

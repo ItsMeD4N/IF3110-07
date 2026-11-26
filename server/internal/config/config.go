@@ -2,57 +2,70 @@ package config
 
 import (
 	"os"
+	"strconv"
+	"strings"
 )
 
 type Config struct {
-	Port          string
-	DatabaseURL   string
-	AppEnv        string
-	SessionSecret string
-	CSRFSecret    string
-	AllowedOrigin string
-	StaticDir     string
-	TemplatesDir  string
+	Port              string
+	DatabaseURL       string
+	AppEnv            string
+	LogLevel          string
+	WorkerConcurrency int
+	EmbeddedWorker    bool
+	RequireApproval   bool
+	OTelServiceName   string
+	OTelExporter      string
+	OTelOTLPEndpoint  string
 }
 
 func LoadConfig() *Config {
-	port := getEnv("PORT", "8080")
-	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable")
 	appEnv := getEnv("APP_ENV", "development")
-	sessionSecret := getEnv("SESSION_SECRET", "super-secret-session-key-change-in-prod-32bytes")
-	csrfSecret := getEnv("CSRF_SECRET", "super-secret-csrf-key-change-in-prod-32bytes")
-	allowedOrigin := getEnv("ALLOWED_ORIGIN", "http://localhost:5173")
-	staticDir := getEnv("STATIC_DIR", resolveDir("client/static", "../client/static"))
-	templatesDir := getEnv("TEMPLATES_DIR", resolveDir("client/templates", "../client/templates"))
-
+	defaultExporter := "stdout"
+	if appEnv == "test" {
+		defaultExporter = "noop"
+	}
 	return &Config{
-		Port:          port,
-		DatabaseURL:   dbURL,
-		AppEnv:        appEnv,
-		SessionSecret: sessionSecret,
-		CSRFSecret:    csrfSecret,
-		AllowedOrigin: allowedOrigin,
-		StaticDir:     staticDir,
-		TemplatesDir:  templatesDir,
+		Port:              getEnv("PORT", "8080"),
+		DatabaseURL:       getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable"),
+		AppEnv:            appEnv,
+		LogLevel:          getEnv("LOG_LEVEL", "info"),
+		WorkerConcurrency: getEnvInt("WORKER_CONCURRENCY", 4),
+		EmbeddedWorker:    getEnvBool("EMBEDDED_WORKER", true),
+		RequireApproval:   getEnvBool("REQUIRE_APPROVAL", false),
+		OTelServiceName:   getEnv("OTEL_SERVICE_NAME", "if3110-db-platform"),
+		OTelExporter:      getEnv("OTEL_TRACES_EXPORTER", defaultExporter),
+		OTelOTLPEndpoint:  getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4318"),
 	}
 }
 
-func resolveDir(candidates ...string) string {
-	for _, c := range candidates {
-		if info, err := os.Stat(c); err == nil && info.IsDir() {
-			return c
-		}
+func getEnv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-	if len(candidates) > 0 {
-		return candidates[0]
-	}
-	return ""
+	return def
 }
 
-func getEnv(key, defaultVal string) string {
-	if val := os.Getenv(key); val != "" {
-		return val
+func getEnvInt(key string, def int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
 	}
-	return defaultVal
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n
 }
 
+func getEnvBool(key string, def bool) bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	switch v {
+	case "true", "1", "yes", "on":
+		return true
+	case "false", "0", "no", "off":
+		return false
+	default:
+		return def
+	}
+}

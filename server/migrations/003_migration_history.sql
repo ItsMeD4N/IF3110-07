@@ -1,5 +1,3 @@
--- Migration history for Orang C. History is stored in the platform database so
--- users with View Only access can inspect it without CREATE privileges on targets.
 CREATE TABLE IF NOT EXISTS platform_migration_history (
     id BIGSERIAL PRIMARY KEY,
     database_id BIGINT NOT NULL REFERENCES db_connections(id) ON DELETE CASCADE,

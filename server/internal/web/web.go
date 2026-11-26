@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 )
 
 type Views struct {
@@ -143,6 +145,39 @@ func (v *Views) Error(w http.ResponseWriter, r *http.Request, status int, headin
 	v.Render(w, r, status, "errors/error.html", heading, ErrorData{Status: status, Heading: heading, Message: message})
 }
 
+func (v *Views) ConnError(w http.ResponseWriter, r *http.Request, err error) {
+	status, _, msg, ok := httpx.ConnStatus(err)
+	switch {
+	case !ok:
+		v.Internal(w, r, err)
+	case status == http.StatusNotFound:
+		v.Error(w, r, status, "Tidak ditemukan", msg)
+	case status == http.StatusConflict:
+		v.Error(w, r, status, "Database tidak boleh dikelola", msg)
+	default:
+		log.Printf("[Web] koneksi database target gagal: path=%s err=%v", r.URL.Path, err)
+		v.Error(w, r, status, "Database tidak dapat dijangkau", msg)
+	}
+}
+
+func (v *Views) Internal(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("[Web] internal error: method=%s path=%s err=%v", r.Method, r.URL.Path, err)
+	v.Error(w, r, http.StatusInternalServerError, "Terjadi kesalahan", httpx.MsgInternal)
+}
+
+func (v *Views) Denied(w http.ResponseWriter, r *http.Request, err error) {
+	switch authz.StatusFor(err) {
+	case http.StatusUnauthorized:
+		http.Redirect(w, r, "/login", http.StatusFound)
+	case http.StatusForbidden:
+		v.Error(w, r, http.StatusForbidden, "Akses ditolak", httpx.MsgForbidden)
+	case http.StatusNotFound:
+		v.Error(w, r, http.StatusNotFound, "Tidak ditemukan", httpx.MsgNotFound)
+	default:
+		v.Internal(w, r, err)
+	}
+}
+
 func StaticHandler(clientDir string) http.Handler {
 	return http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join(clientDir, "static"))))
 }
@@ -206,4 +241,3 @@ var funcs = template.FuncMap{
 	},
 	"join": strings.Join,
 }
-

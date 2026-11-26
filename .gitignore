@@ -1,2 +1,25 @@
 docs/
 node_modules/
+
+# Binaries and build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+server/server.exe
+
+# Archives
+*.tar.gz
+*.tgz
+*.zip
+
+# Local environment and caches
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+

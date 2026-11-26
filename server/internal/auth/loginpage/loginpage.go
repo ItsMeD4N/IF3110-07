@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 )
@@ -14,8 +15,8 @@ const AfterLoginPath = "/databases"
 
 const (
 	msgInvalid  = "Username atau password salah."
-	msgInactive = "Akun Anda telah dinonaktifkan. Silakan hubungi Platform Admin."
-	msgInternal = "Terjadi kesalahan pada server. Coba lagi."
+	msgInactive = "Akun kamu sudah dinonaktifkan. Hubungi Platform Admin."
+	msgInternal = "Ada masalah di server. Coba lagi."
 )
 
 type Handler struct {
@@ -76,13 +77,14 @@ func (h *Handler) postLogin(w http.ResponseWriter, r *http.Request) {
 	if old, err := h.sessions.ExtractToken(r); err == nil {
 		_ = h.sessions.Revoke(r.Context(), old, nil)
 	}
-	_, token, err := h.sessions.CreateSession(r.Context(), user.ID, r.RemoteAddr, r.UserAgent())
+	sess, token, err := h.sessions.CreateSession(r.Context(), user.ID, r.RemoteAddr, r.UserAgent())
 	if err != nil {
 		log.Printf("[Login] gagal membuat session: user=%s err=%v", user.ID, err)
 		h.render(w, r, http.StatusInternalServerError, pageData{Username: username, Error: msgInternal})
 		return
 	}
-	h.sessions.SetCookie(w, token)
+	h.sessions.SetCookie(w, token, sess.AbsoluteExpiresAt)
+	_, _ = csrf.Rotate(w, h.sessions.SecureCookies())
 	web.Redirect(w, r, AfterLoginPath)
 }
 
@@ -92,6 +94,6 @@ func (h *Handler) postLogout(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.sessions.ClearCookie(w)
 	}
-	web.SetFlash(w, "success", "Anda telah keluar.")
+	web.SetFlash(w, "success", "Kamu sudah keluar.")
 	web.Redirect(w, r, "/login")
 }

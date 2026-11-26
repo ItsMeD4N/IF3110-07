@@ -57,11 +57,15 @@ func New(db *sql.DB, users auth.UserRepository, sessions *session.Manager, opt O
 	if err != nil {
 		return nil, err
 	}
+	fp, err := connmgr.Fingerprint(context.Background(), db)
+	if err != nil {
+		return nil, fmt.Errorf("admin: identifikasi database platform: %w", err)
+	}
 	st := store.New(db, box)
 	az := authz.New(st)
 	return &Module{
 		Store:    st,
-		Conns:    connmgr.New(st, connmgr.Options{}),
+		Conns:    connmgr.New(st, connmgr.Options{PlatformFingerprint: fp}),
 		Authz:    az,
 		MW:       authz.NewMiddleware(az),
 		Users:    users,

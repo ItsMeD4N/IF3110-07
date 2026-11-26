@@ -2,149 +2,113 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"log"
+	"errors"
+	"log/slog"
 	"net/http"
-	"path/filepath"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/ItsMeD4N/IF3110-07/server/internal/admin"
-	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
-	"github.com/ItsMeD4N/IF3110-07/server/internal/auth/loginpage"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/app"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
-	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
-	"github.com/ItsMeD4N/IF3110-07/server/internal/dbmanager"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/migration"
-	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
-	"github.com/ItsMeD4N/IF3110-07/server/internal/user"
-	"github.com/ItsMeD4N/IF3110-07/server/internal/view"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
 	"github.com/ItsMeD4N/IF3110-07/server/migrations"
 )
 
 func main() {
 	cfg := config.LoadConfig()
-	isProd := cfg.AppEnv == "production"
+	ctx := context.Background()
 
-	// 1. Inisialisasi Pool Database PostgreSQL
+	telemetry.InitLogger(os.Stdout, telemetry.ParseLogLevel(cfg.LogLevel))
+
+	_, shutdownTrace, err := telemetry.InitTracing(ctx, telemetry.TracingConfig{
+		ServiceName:  cfg.OTelServiceName,
+		Environment:  cfg.AppEnv,
+		Exporter:     cfg.OTelExporter,
+		OTLPEndpoint: cfg.OTelOTLPEndpoint,
+	})
+	if err != nil {
+		slog.Error("inisialisasi tracing gagal", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdownTrace(sctx)
+	}()
+
 	db, err := database.InitDB(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("[Database] Gagal menghubungkan ke database: %v", err)
+		slog.Error("koneksi ke database platform gagal", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
-	log.Println("[Database] Berhasil terhubung ke PostgreSQL platform_db")
 
-	if err := migrations.Apply(context.Background(), db); err != nil {
-		log.Fatalf("[Database] Gagal menjalankan migrasi: %v", err)
+	if err := migrations.Apply(ctx, db); err != nil {
+		slog.Error("migrasi database platform gagal", "error", err)
+		os.Exit(1)
 	}
 
-	mux := http.NewServeMux()
-
-	// 2. Health check & status endpoint
-	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":    "healthy",
-			"timestamp": time.Now().Format(time.RFC3339),
-			"version":   "1.0.0",
-		})
-	})
-
-	// Inisialisasi Repository & Manager [Orang A]
-	userRepo := auth.NewUserRepository(db)
-	sessionRepo := session.NewSessionRepository(db)
-	sessionMgr := session.NewManager(sessionRepo, isProd)
-
-	// 3. Registrasi Rute Per Modul
-	// [Orang A] Modul Identity & Session
-	auth.RegisterRoutes(mux, userRepo, sessionMgr)
-	user.RegisterRoutes(mux, userRepo, sessionMgr)
-	csrf.RegisterRoutes(mux)
+	if n, err := migration.RecoverInterrupted(ctx, db); err != nil {
+		slog.Error("pemulihan migration legacy gagal", "error", err)
+		os.Exit(1)
+	} else if n > 0 {
+		telemetry.LogEvent(ctx, slog.LevelWarn, "migration.legacy_recovered",
+			slog.Int64("count", n),
+			slog.String("status", "recovered"),
+		)
+	}
 
 	clientDir, err := web.FindClientDir()
 	if err != nil {
-		log.Fatalf("[Web] %v", err)
+		slog.Error("folder client tidak ditemukan", "error", err)
+		os.Exit(1)
 	}
-	views, err := web.New(clientDir, !isProd)
+
+	a, err := app.New(db, app.Options{
+		AppEnv:            cfg.AppEnv,
+		ClientDir:         clientDir,
+		DatabaseDSN:       cfg.DatabaseURL,
+		WorkerConcurrency: cfg.WorkerConcurrency,
+		DisableWorker:     !cfg.EmbeddedWorker,
+		RequireApproval:   cfg.RequireApproval,
+	})
 	if err != nil {
-		log.Fatalf("[Web] Gagal memuat template: %v", err)
+		slog.Error("inisialisasi aplikasi gagal", "error", err)
+		os.Exit(1)
 	}
-	mux.Handle("GET /static/", web.StaticHandler(clientDir))
+	defer a.Close()
 
-	loginpage.New(userRepo, sessionMgr, views).RegisterRoutes(mux)
-
-	adminMod, err := admin.New(db, userRepo, sessionMgr, admin.Options{AppEnv: cfg.AppEnv, Views: views})
-	if err != nil {
-		log.Fatalf("[Admin] %v", err)
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           a.Handler,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
-	defer adminMod.Close()
-	adminMod.OnPrivilegeChange = func(ctx context.Context, userIDs []string, reason string) {
-		if err := sessionMgr.RequireRotation(ctx, userIDs); err != nil {
-			log.Printf("[Admin] gagal menandai rotasi session (%s): %v", reason, err)
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		telemetry.LogEvent(ctx, slog.LevelInfo, "server.started",
+			slog.String("addr", srv.Addr),
+			slog.String("env", cfg.AppEnv),
+			slog.Bool("embedded_worker", cfg.EmbeddedWorker),
+			slog.Int("worker_concurrency", cfg.WorkerConcurrency),
+			slog.String("status", "running"),
+		)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("server berhenti dengan error", "error", err)
+			os.Exit(1)
 		}
-	}
-	adminMod.RegisterRoutes(mux)
+	}()
 
-	// [Orang A] Web Platform Admin User Management
-	viewEngine := view.NewEngine(filepath.Join(clientDir, "templates"), !isProd)
-	webHandler := web.NewHandler(userRepo, sessionMgr, viewEngine)
-	webHandler.RegisterAdminUserRoutes(mux)
-
-	// [Orang C] Modul Database Viewer & Migration
-	dbMgr := dbmanager.New(adminMod.Conns, adminMod.Authz, userRepo, sessionMgr, views)
-	dbMgr.RegisterRoutes(mux)
-
-	migMod := migration.New(db, adminMod.Conns, adminMod.Authz, userRepo, sessionMgr, views)
-	migMod.RegisterRoutes(mux)
-
-	// 4. Pasang Global Middleware: Logging, CORS, CSRF, dan Security Headers
-	handler := securityHeadersMiddleware(mux)
-	handler = csrf.Middleware(isProd)(handler)
-	handler = corsMiddleware(cfg.AllowedOrigin, handler)
-	handler = loggingMiddleware(handler)
-
-	addr := fmt.Sprintf(":%s", cfg.Port)
-	log.Printf("[Server] Database Management Platform berjalan di port %s (env: %s)...", cfg.Port, cfg.AppEnv)
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatalf("[Server] Gagal menjalankan HTTP server: %v", err)
-	}
-}
-
-// corsMiddleware mengatur CORS untuk integrasi client/ dan server/
-func corsMiddleware(allowedOrigin string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// securityHeadersMiddleware memasang header keamanan standar
-func securityHeadersMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("X-XSS-Protection", "1; mode=block")
-		next.ServeHTTP(w, r)
-	})
-}
-
-// loggingMiddleware mencatat incoming request dengan penyaringan data sensitif (password & token tidak di-log)
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		// Catat hanya path dan method, JANGAN log isi body atau query berisi kredensial/token
-		log.Printf("[%s] %s %s - %v", r.Method, r.URL.Path, r.RemoteAddr, time.Since(start))
-	})
+	<-stop
+	telemetry.LogEvent(ctx, slog.LevelInfo, "server.shutting_down", slog.String("status", "stopping"))
+	shCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(shCtx)
 }

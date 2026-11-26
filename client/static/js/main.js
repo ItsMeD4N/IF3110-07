@@ -1,10 +1,4 @@
-/**
- * Database Management Platform - Client Scripts
- * Handles modal dialogs, flash alerts, and interactive components.
- */
-
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Auto dismiss alerts or manual close
   document.querySelectorAll('.alert-close').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const alert = e.target.closest('.alert');
@@ -17,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 2. Close modal on backdrop click
   document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) {
@@ -26,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 3. Close modal on Escape key
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       document.querySelectorAll('.modal-backdrop.active').forEach(backdrop => {
@@ -36,9 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-/**
- * Open a modal by ID
- */
 function openModal(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) {
@@ -50,9 +39,6 @@ function openModal(modalId) {
   }
 }
 
-/**
- * Close a modal by ID
- */
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) {
@@ -60,9 +46,6 @@ function closeModal(modalId) {
   }
 }
 
-/**
- * Prepare and open Edit User Modal
- */
 function openEditUserModal(id, username, isAdmin, isActive) {
   const modal = document.getElementById('editUserModal');
   if (!modal) return;
@@ -78,9 +61,6 @@ function openEditUserModal(id, username, isAdmin, isActive) {
   openModal('editUserModal');
 }
 
-/**
- * Prepare and open Reset Password Modal
- */
 function openResetPasswordModal(id, username) {
   const modal = document.getElementById('resetPasswordModal');
   if (!modal) return;

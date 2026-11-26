@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/auth"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/csrf"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/testutil"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/web"
@@ -185,5 +186,29 @@ func TestLogout_RevokesSession(t *testing.T) {
 	}
 	if rec := e.do("POST", "/logout", url.Values{}, nil); rec.Code != http.StatusSeeOther {
 		t.Fatalf("logout tanpa session = %d", rec.Code)
+	}
+}
+
+func TestLogin_RotatesCSRFToken(t *testing.T) {
+	e := newEnv(t)
+	u := e.user(t, true)
+	old := &http.Cookie{Name: csrf.CSRFCookieName, Value: "token-sebelum-login"}
+
+	rec := e.do("POST", "/login", url.Values{"username": {u.Username}, "password": {password}}, old)
+	var rotated *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == csrf.CSRFCookieName {
+			rotated = c
+		}
+	}
+	if rotated == nil || rotated.Value == "" || rotated.Value == old.Value {
+		t.Fatalf("token CSRF tidak dirotasi saat login: %+v", rotated)
+	}
+
+	rec = e.do("POST", "/login", url.Values{"username": {u.Username}, "password": {"salah"}}, old)
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == csrf.CSRFCookieName {
+			t.Fatal("token CSRF dirotasi walaupun login gagal")
+		}
 	}
 }

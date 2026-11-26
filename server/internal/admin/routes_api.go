@@ -2,12 +2,10 @@ package admin
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"regexp"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
-	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/store"
 )
@@ -59,20 +57,6 @@ func writeStoreErr(w http.ResponseWriter, r *http.Request, err error, conflictMs
 		httpx.Internal(w, r, err)
 	}
 }
-
-func WriteConnError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, connmgr.ErrNotFound):
-		httpx.NotFound(w)
-	case errors.Is(err, connmgr.ErrConnectionFailed):
-		log.Printf("[Admin] koneksi database target gagal: path=%s err=%v", r.URL.Path, err)
-		httpx.WriteError(w, http.StatusServiceUnavailable, httpx.CodeConnectionFailed, MsgConnectionFailed)
-	default:
-		httpx.Internal(w, r, err)
-	}
-}
-
-const MsgConnectionFailed = "Tidak dapat terhubung ke database. Coba lagi nanti atau hubungi Platform Admin."
 
 var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 

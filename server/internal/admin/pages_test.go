@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/testutil"
 )
 
@@ -96,7 +97,7 @@ func TestAdminPages_Connections(t *testing.T) {
 	form.Set("action", "test")
 	rec := e.page(admin, "POST", "/admin/connections", form)
 	expectStatus(t, rec, http.StatusOK)
-	expectBody(t, rec.Body.String(), "Berhasil terhubung")
+	expectBody(t, rec.Body.String(), "Terhubung ke PostgreSQL")
 
 	form.Set("action", "save")
 	form.Set("test_before_save", "1")
@@ -175,7 +176,7 @@ func TestDatabasePages(t *testing.T) {
 
 	rec = e.page(alice, "POST", fmt.Sprintf("/databases/%d/open", dead), url.Values{})
 	expectStatus(t, rec, http.StatusServiceUnavailable)
-	expectBody(t, rec.Body.String(), MsgConnectionFailed)
+	expectBody(t, rec.Body.String(), httpx.MsgConnectionFailed)
 	if strings.Contains(rec.Body.String(), deadPassword) {
 		t.Fatal("halaman koneksi gagal membocorkan password")
 	}
@@ -185,5 +186,5 @@ func TestDatabasePages(t *testing.T) {
 
 	rec = e.page(admin, "GET", "/databases", nil)
 	expectStatus(t, rec, http.StatusOK)
-	expectBody(t, rec.Body.String(), "Sebagai Platform Admin")
+	expectBody(t, rec.Body.String(), "Admin juga perlu masuk ke group")
 }

@@ -9,7 +9,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// InitDB menginisialisasi koneksi pool ke database platform PostgreSQL
 func InitDB(connStr string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -27,7 +26,6 @@ func InitDB(connStr string) (*sql.DB, error) {
 	return db, nil
 }
 
-// RunMigrationFile mengeksekusi file SQL migrasi terhadap database
 func RunMigrationFile(db *sql.DB, filePath string) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
@@ -40,4 +38,3 @@ func RunMigrationFile(db *sql.DB, filePath string) error {
 
 	return nil
 }
-

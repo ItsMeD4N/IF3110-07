@@ -11,7 +11,7 @@ services:
       - "${DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./server/migrations/001_orang_a_users_sessions.sql:/docker-entrypoint-initdb.d/001_init.sql
+      - ./docker/sample_db.sql:/docker-entrypoint-initdb.d/sample_db.sql
 
 volumes:
   pgdata:

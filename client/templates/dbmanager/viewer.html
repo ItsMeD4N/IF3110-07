@@ -1,13 +1,13 @@
-{{define "title"}}Database Viewer{{end}}
+{{define "title"}}Viewer{{end}}
 {{define "content"}}
 {{$id := .Data.DatabaseID}}
 <header class="page-header">
   <div>
     <p class="crumb"><a href="/databases/{{$id}}">Database</a> / Viewer</p>
-    <h1>Database Viewer</h1>
-    <p class="muted">Introspeksi schema, tabel, kolom, constraint, index, dan data tabel.</p>
+    <h1>Viewer</h1>
+    <p class="muted">Lihat struktur dan isi tabel.</p>
   </div>
-  <a class="btn" href="/databases/{{$id}}/migrations">SQL Migration</a>
+  <a class="btn" href="/databases/{{$id}}/migrations">Migration</a>
 </header>
 <section class="card">
   <div class="form-row">
