@@ -24,6 +24,7 @@ interface LiveJobTrackerProps {
   dbId: number;
   jobId: string;
   initialJob?: MigrationJob;
+  onUpdate?: (job: MigrationJob, execution?: MigrationExecution) => void;
   onTerminal?: (job: MigrationJob, execution?: MigrationExecution) => void;
   onDismiss?: () => void;
 }
@@ -32,6 +33,7 @@ export function LiveJobTracker({
   dbId,
   jobId,
   initialJob,
+  onUpdate,
   onTerminal,
   onDismiss,
 }: LiveJobTrackerProps) {
@@ -39,6 +41,8 @@ export function LiveJobTracker({
   const [execution, setExecution] = useState<MigrationExecution | undefined>(undefined);
   const [pollError, setPollError] = useState('');
   const notifiedRef = useRef(false);
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
   const onTerminalRef = useRef(onTerminal);
   onTerminalRef.current = onTerminal;
 
@@ -58,6 +62,7 @@ export function LiveJobTracker({
         setJob(res.job);
         setExecution(res.execution);
         setPollError('');
+        onUpdateRef.current?.(res.job, res.execution);
 
         if (isTerminalJobStatus(res.job.status)) {
           if (!notifiedRef.current) {

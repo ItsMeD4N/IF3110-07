@@ -221,11 +221,36 @@ export function MigrationHistoryPage() {
     }
   };
 
+  const handleTrackedJobUpdate = useCallback(
+    (job: MigrationJob, liveExec?: MigrationExecution) => {
+      if (job.execution_id && job.execution_id !== selectedExecId) {
+        setSelectedExecId(job.execution_id);
+        syncParams(hideRollback, job.execution_id);
+      }
+      if (liveExec) {
+        setDetail(liveExec);
+        setExecutions((prev) => {
+          const exists = prev.some((e) => e.execution_id === liveExec.execution_id);
+          if (exists) {
+            return prev.map((e) => (e.execution_id === liveExec.execution_id ? liveExec : e));
+          }
+          return [liveExec, ...prev];
+        });
+      }
+    },
+    [hideRollback, selectedExecId, syncParams],
+  );
+
   const handleTrackedJobFinished = useCallback(
     async (job: MigrationJob) => {
+      const targetExecId = job.execution_id || selectedExecId;
+      if (job.execution_id) {
+        setSelectedExecId(job.execution_id);
+        syncParams(hideRollback, job.execution_id);
+      }
       await Promise.all([
         loadExecutions(hideRollback),
-        selectedExecId ? loadDetail(selectedExecId) : Promise.resolve(),
+        targetExecId ? loadDetail(targetExecId) : Promise.resolve(),
         refreshLock(),
       ]);
       if (job.status === 'completed') {
@@ -234,15 +259,35 @@ export function MigrationHistoryPage() {
         pushToast('info', `Job ${job.action} selesai dengan status ${job.status}.`);
       }
     },
-    [hideRollback, loadDetail, loadExecutions, pushToast, refreshLock, selectedExecId],
+    [hideRollback, loadDetail, loadExecutions, pushToast, refreshLock, selectedExecId, syncParams],
+  );
+
+  const childExecution = useMemo(() => {
+    if (!detail) return null;
+    return executions.find((e) => e.parent_execution_id === detail.execution_id) ?? null;
+  }, [detail, executions]);
+
+  const isSupersededPartial = Boolean(
+    childExecution &&
+      (detail?.status === 'partial' || detail?.status === 'partially_reverted') &&
+      (childExecution.status === 'success' ||
+        childExecution.status === 'reverted' ||
+        childExecution.status === 'running' ||
+        childExecution.status === 'partial' ||
+        childExecution.status === 'partially_reverted'),
   );
 
   const canResume = Boolean(
-    canEdit && detail && detail.execution_mode === 'batch' && detail.status === 'partial',
+    canEdit &&
+      detail &&
+      !isSupersededPartial &&
+      detail.execution_mode === 'batch' &&
+      detail.status === 'partial',
   );
   const canRevert = Boolean(
     canEdit &&
       detail &&
+      !isSupersededPartial &&
       detail.execution_mode === 'batch' &&
       (detail.status === 'partial' || detail.status === 'partially_reverted' || detail.status === 'success'),
   );
@@ -285,6 +330,7 @@ export function MigrationHistoryPage() {
           dbId={database.id}
           jobId={trackedJob.jobId}
           initialJob={trackedJob.initialJob}
+          onUpdate={handleTrackedJobUpdate}
           onTerminal={(job) => void handleTrackedJobFinished(job)}
           onDismiss={() => setTrackedJob(null)}
         />
@@ -589,6 +635,24 @@ export function MigrationHistoryPage() {
                   </div>
                 </dl>
 
+                {childExecution && (
+                  <Alert variant="info" title="Execution ini sudah memiliki tindak lanjut">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        Riwayat <code className="font-mono">#E{detail.execution_id}</code> bersifat append-only (menunjukkan snapshot saat berhenti). Proses lanjutannya tercatat di{' '}
+                        <code className="font-mono font-semibold">#E{childExecution.execution_id}</code> ({ACTION_LABELS[childExecution.action] ?? childExecution.action} · {childExecution.status}).
+                      </span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleSelectExecution(childExecution.execution_id)}
+                      >
+                        Lihat #E{childExecution.execution_id} →
+                      </Button>
+                    </div>
+                  </Alert>
+                )}
+
                 {detail.error && (
                   <Alert variant="error" title="Error Eksekusi">
                     <p className="font-mono text-xs">{detail.error}</p>
@@ -671,6 +735,7 @@ export function MigrationHistoryPage() {
                           <thead>
                             <tr>
                               <th scope="col">Batch</th>
+                              <th scope="col">Exec</th>
                               <th scope="col">Rentang Cursor</th>
                               <th scope="col" className="text-right">
                                 Rows
@@ -688,6 +753,9 @@ export function MigrationHistoryPage() {
                                 <th scope="row" className="text-left font-mono text-xs font-semibold text-ink tabular-nums">
                                   #{cp.batch_number}
                                 </th>
+                                <td className="font-mono text-xs text-muted tabular-nums">
+                                  #E{cp.execution_id}
+                                </td>
                                 <td className="font-mono text-xs text-ink">
                                   {cp.cursor_start} → {cp.cursor_end}
                                 </td>
