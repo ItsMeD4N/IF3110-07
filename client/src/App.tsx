@@ -2,6 +2,10 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { PublicOnly, RequireAdmin, RequireAuth } from '@/components/RouteGuards';
 import { LoginPage } from '@/pages/LoginPage';
 import { DatabasesPage } from '@/pages/DatabasesPage';
+import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
+import { AdminGroupsPage } from '@/pages/admin/AdminGroupsPage';
+import { AdminGroupDetailPage } from '@/pages/admin/AdminGroupDetailPage';
+import { AdminConnectionsPage } from '@/pages/admin/AdminConnectionsPage';
 import { ModulePlaceholderPage } from '@/pages/ModulePlaceholderPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
@@ -88,42 +92,10 @@ export function App() {
         />
 
         <Route element={<RequireAdmin />}>
-          <Route
-            path="/admin/users"
-            element={
-              <ModulePlaceholderPage
-                title="Manajemen Pengguna"
-                description="Kelola akun pengguna, status admin/aktif, reset password, dan pencabutan sesi."
-                endpoints={['GET/POST /api/admin/users', 'PUT/DELETE /api/admin/users/:id']}
-                parentTo="/admin/users"
-                parentLabel="Platform Admin"
-              />
-            }
-          />
-          <Route
-            path="/admin/groups"
-            element={
-              <ModulePlaceholderPage
-                title="Group & Akses Database"
-                description="Kelola group, penetapan leader group, anggota, dan hak akses View Only / View + Edit per database."
-                endpoints={['GET/POST /api/admin/groups', 'PUT .../leader', 'POST/DELETE .../members', 'PUT/DELETE .../grants']}
-                parentTo="/admin/groups"
-                parentLabel="Platform Admin"
-              />
-            }
-          />
-          <Route
-            path="/admin/connections"
-            element={
-              <ModulePlaceholderPage
-                title="Koneksi Database"
-                description="Kelola koneksi PostgreSQL terenkripsi dan uji konektivitas sebelum/sesudah penyimpanan."
-                endpoints={['GET/POST /api/admin/connections', 'POST .../test', 'PUT/DELETE /api/admin/connections/:id']}
-                parentTo="/admin/connections"
-                parentLabel="Platform Admin"
-              />
-            }
-          />
+          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/groups" element={<AdminGroupsPage />} />
+          <Route path="/admin/groups/:groupId" element={<AdminGroupDetailPage />} />
+          <Route path="/admin/connections" element={<AdminConnectionsPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
