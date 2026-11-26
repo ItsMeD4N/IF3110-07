@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FormDialog } from '@/components/ui/FormDialog';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SkeletonLine } from '@/components/ui/Skeleton';
 import { TableShell } from '@/components/ui/TableShell';
 
@@ -79,6 +80,8 @@ export function MigrationHistoryPage() {
 
   const tableCaptionId = useId();
   const checkpointsCaptionId = useId();
+  const detailSectionRef = useRef<HTMLElement>(null);
+  const skipNextDetailFetchRef = useRef<number | null>(null);
 
   const syncParams = useCallback(
     (hide: boolean, execId: number | null) => {
@@ -91,9 +94,11 @@ export function MigrationHistoryPage() {
   );
 
   const loadExecutions = useCallback(
-    async (hide: boolean) => {
-      setLoading(true);
-      setListError('');
+    async (hide: boolean, silent = false) => {
+      if (!silent) {
+        setLoading(true);
+        setListError('');
+      }
       try {
         const res = await migrationService.listExecutions(database.id, hide);
         const list = res.executions ?? [];
@@ -103,42 +108,94 @@ export function MigrationHistoryPage() {
           return list.length > 0 ? list[0].execution_id : null;
         });
       } catch (err) {
-        setListError(err instanceof ApiError ? err.message : 'Gagal memuat riwayat eksekusi migration.');
+        if (!silent) {
+          setListError(err instanceof ApiError ? err.message : 'Gagal memuat riwayat eksekusi migration.');
+        }
       } finally {
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
       }
     },
     [database.id],
   );
 
   const loadDetail = useCallback(
-    async (execId: number) => {
-      setLoadingDetail(true);
-      setDetailError('');
+    async (execId: number, silent = false) => {
+      if (!silent) {
+        setLoadingDetail(true);
+        setDetailError('');
+      }
       try {
         const full = await migrationService.getExecution(database.id, execId);
         setDetail(full);
+        setDetailError('');
       } catch (err) {
-        setDetail(null);
-        setDetailError(err instanceof ApiError ? err.message : 'Gagal memuat detail execution.');
+        if (!silent) {
+          setDetail(null);
+          setDetailError(err instanceof ApiError ? err.message : 'Gagal memuat detail execution.');
+        }
       } finally {
-        setLoadingDetail(false);
+        if (!silent) {
+          setLoadingDetail(false);
+        }
       }
     },
     [database.id],
   );
 
   useEffect(() => {
-    void loadExecutions(hideRollback);
+    void loadExecutions(hideRollback, false);
   }, [hideRollback, loadExecutions]);
 
   useEffect(() => {
     if (selectedExecId) {
-      void loadDetail(selectedExecId);
+      if (skipNextDetailFetchRef.current === selectedExecId) {
+        skipNextDetailFetchRef.current = null;
+        return;
+      }
+      void loadDetail(selectedExecId, false);
     } else {
       setDetail(null);
     }
   }, [loadDetail, selectedExecId]);
+
+  const detailExecId = detail?.execution_id ?? null;
+  const detailIsRunning = detail?.status === 'running' || detail?.status === 'pending';
+
+  // Fallback live polling if user opens/refreshes History while an execution is already running
+  useEffect(() => {
+    if (!detailIsRunning || !detailExecId || trackedJob) return;
+    let cancelled = false;
+    let timerId: number | undefined;
+
+    const pollDetail = async () => {
+      try {
+        const full = await migrationService.getExecution(database.id, detailExecId);
+        if (cancelled) return;
+        setDetail(full);
+        setExecutions((prev) =>
+          prev.map((e) => (e.execution_id === full.execution_id ? full : e)),
+        );
+        if (full.status === 'running' || full.status === 'pending') {
+          timerId = window.setTimeout(() => void pollDetail(), 300);
+        } else {
+          void loadExecutions(hideRollback, true);
+          void refreshLock();
+        }
+      } catch {
+        if (!cancelled) {
+          timerId = window.setTimeout(() => void pollDetail(), 700);
+        }
+      }
+    };
+
+    timerId = window.setTimeout(() => void pollDetail(), 300);
+    return () => {
+      cancelled = true;
+      if (timerId !== undefined) window.clearTimeout(timerId);
+    };
+  }, [database.id, detailExecId, detailIsRunning, hideRollback, loadExecutions, refreshLock, trackedJob]);
 
   const handleToggleHideRollback = (checked: boolean) => {
     setHideRollback(checked);
@@ -171,7 +228,14 @@ export function MigrationHistoryPage() {
         const res = await migrationService.reconcileExecution(database.id, exec.execution_id);
         pushToast('success', res.message || `Execution #${exec.execution_id} selesai direkonsiliasi.`);
         setRecoveryTarget(null);
-        await Promise.all([loadExecutions(hideRollback), loadDetail(exec.execution_id), refreshLock()]);
+        requestAnimationFrame(() => {
+          detailSectionRef.current?.focus({ preventScroll: true });
+        });
+        await Promise.all([
+          loadExecutions(hideRollback, true),
+          loadDetail(exec.execution_id, true),
+          refreshLock(),
+        ]);
       } else {
         const key = generateIdempotencyKey(`${kind}-e${exec.execution_id}`);
         const res =
@@ -181,7 +245,10 @@ export function MigrationHistoryPage() {
         pushToast('info', `${res.message} (Job ${res.job_id.slice(0, 8)}…)`);
         setTrackedJob({ jobId: res.job_id, initialJob: res.job });
         setRecoveryTarget(null);
-        await Promise.all([loadExecutions(hideRollback), refreshLock()]);
+        requestAnimationFrame(() => {
+          detailSectionRef.current?.focus({ preventScroll: true });
+        });
+        await Promise.all([loadExecutions(hideRollback, true), refreshLock()]);
       }
     } catch (err) {
       setRecoveryTarget(null);
@@ -223,12 +290,14 @@ export function MigrationHistoryPage() {
 
   const handleTrackedJobUpdate = useCallback(
     (job: MigrationJob, liveExec?: MigrationExecution) => {
-      if (job.execution_id && job.execution_id !== selectedExecId) {
-        setSelectedExecId(job.execution_id);
-        syncParams(hideRollback, job.execution_id);
-      }
       if (liveExec) {
+        if (liveExec.execution_id !== selectedExecId) {
+          skipNextDetailFetchRef.current = liveExec.execution_id;
+          setSelectedExecId(liveExec.execution_id);
+          syncParams(hideRollback, liveExec.execution_id);
+        }
         setDetail(liveExec);
+        setDetailError('');
         setExecutions((prev) => {
           const exists = prev.some((e) => e.execution_id === liveExec.execution_id);
           if (exists) {
@@ -236,21 +305,30 @@ export function MigrationHistoryPage() {
           }
           return [liveExec, ...prev];
         });
+      } else if (job.execution_id && job.execution_id !== selectedExecId) {
+        skipNextDetailFetchRef.current = job.execution_id;
+        setSelectedExecId(job.execution_id);
+        syncParams(hideRollback, job.execution_id);
+        void loadDetail(job.execution_id, true);
       }
     },
-    [hideRollback, selectedExecId, syncParams],
+    [hideRollback, loadDetail, selectedExecId, syncParams],
   );
 
   const handleTrackedJobFinished = useCallback(
-    async (job: MigrationJob) => {
+    async (job: MigrationJob, liveExec?: MigrationExecution) => {
       const targetExecId = job.execution_id || selectedExecId;
-      if (job.execution_id) {
+      if (job.execution_id && job.execution_id !== selectedExecId) {
+        skipNextDetailFetchRef.current = job.execution_id;
         setSelectedExecId(job.execution_id);
         syncParams(hideRollback, job.execution_id);
       }
+      if (liveExec) {
+        setDetail(liveExec);
+      }
       await Promise.all([
-        loadExecutions(hideRollback),
-        targetExecId ? loadDetail(targetExecId) : Promise.resolve(),
+        loadExecutions(hideRollback, true),
+        targetExecId ? loadDetail(targetExecId, true) : Promise.resolve(),
         refreshLock(),
       ]);
       if (job.status === 'completed') {
@@ -325,23 +403,6 @@ export function MigrationHistoryPage() {
 
   return (
     <div className="space-y-5">
-      {trackedJob && (
-        <LiveJobTracker
-          dbId={database.id}
-          jobId={trackedJob.jobId}
-          initialJob={trackedJob.initialJob}
-          onUpdate={handleTrackedJobUpdate}
-          onTerminal={(job) => void handleTrackedJobFinished(job)}
-          onDismiss={() => setTrackedJob(null)}
-        />
-      )}
-
-      {actionError && (
-        <Alert variant="error" title="Aksi pemulihan ditolak">
-          {actionError}
-        </Alert>
-      )}
-
       {/* Top Controls: Hide rollback checkbox + refresh */}
       <div className="card-surface flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
@@ -501,7 +562,12 @@ export function MigrationHistoryPage() {
           </TableShell>
 
           {/* Selected Execution Inspector + Batch Checkpoints + Recovery Controls */}
-          <section className="card-surface p-5" aria-label="Detail eksekusi migration">
+          <section
+            ref={detailSectionRef}
+            tabIndex={-1}
+            className="card-surface p-5 focus:outline-none"
+            aria-label="Detail eksekusi migration"
+          >
             {loadingDetail ? (
               <div className="space-y-3" role="status" aria-label="Memuat detail execution">
                 <SkeletonLine className="h-6 w-56" />
@@ -599,6 +665,24 @@ export function MigrationHistoryPage() {
                   )}
                 </div>
 
+                {trackedJob && (
+                  <LiveJobTracker
+                    dbId={database.id}
+                    jobId={trackedJob.jobId}
+                    initialJob={trackedJob.initialJob}
+                    embedded
+                    onUpdate={handleTrackedJobUpdate}
+                    onTerminal={(job, liveExec) => void handleTrackedJobFinished(job, liveExec)}
+                    onDismiss={() => setTrackedJob(null)}
+                  />
+                )}
+
+                {actionError && (
+                  <Alert variant="error" title="Aksi pemulihan ditolak">
+                    {actionError}
+                  </Alert>
+                )}
+
                 {/* Metadata Grid */}
                 <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
@@ -664,8 +748,139 @@ export function MigrationHistoryPage() {
                   </Alert>
                 )}
 
+                {/* Batch Summary & Checkpoints */}
+                {(detail.execution_mode === 'batch' || (detail.checkpoints && detail.checkpoints.length > 0)) && (() => {
+                  const isRevertAction = detail.action === 'batch_revert';
+                  const batchDone = isRevertAction ? detail.reverted_batches : detail.completed_batches;
+                  const batchPct =
+                    detail.total_batches > 0
+                      ? Math.min(100, Math.round((batchDone / detail.total_batches) * 100))
+                      : 0;
+                  const barTone =
+                    detail.status === 'success' || detail.status === 'reverted'
+                      ? 'ok'
+                      : detail.status === 'failed' || detail.status === 'uncertain'
+                        ? 'danger'
+                        : detail.status === 'partial' || detail.status === 'partially_reverted'
+                          ? 'warn'
+                          : 'accent';
+
+                  return (
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 id={checkpointsCaptionId} className="text-sm font-semibold text-ink">
+                          Progres &amp; Checkpoints Batch
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted tabular-nums">
+                          <span>
+                            {isRevertAction ? 'Reverted:' : 'Committed:'}{' '}
+                            <strong className="text-ink">
+                              {batchDone}/{detail.total_batches}
+                            </strong>{' '}
+                            batch ({batchPct}% ·{' '}
+                            {formatNumber(isRevertAction ? detail.reverted_rows : detail.rows_affected)} rows)
+                          </span>
+                          {!isRevertAction && detail.reverted_batches > 0 && (
+                            <span>
+                              Reverted:{' '}
+                              <strong className="text-warn">{detail.reverted_batches}</strong> batch (
+                              {formatNumber(detail.reverted_rows)} rows)
+                            </span>
+                          )}
+                          {detail.last_cursor && (
+                            <span>
+                              Cursor terakhir:{' '}
+                              <code className="font-mono text-ink">{detail.last_cursor}</code>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {detail.total_batches > 0 && (
+                        <ProgressBar
+                          value={batchDone}
+                          max={detail.total_batches}
+                          label="Progres batch execution"
+                          active={detailIsRunning}
+                          tone={barTone}
+                        />
+                      )}
+
+                      {detail.checkpoints && detail.checkpoints.length > 0 ? (
+                        <TableShell ariaLabelledBy={checkpointsCaptionId}>
+                          <table>
+                            <thead>
+                              <tr>
+                                <th scope="col">Batch</th>
+                                <th scope="col">Exec</th>
+                                <th scope="col">Rentang Cursor</th>
+                                <th scope="col" className="text-right">
+                                  Rows
+                                </th>
+                                <th scope="col">Status</th>
+                                <th scope="col" className="text-right">
+                                  Durasi
+                                </th>
+                                <th scope="col">Error / Catatan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detail.checkpoints.map((cp) => (
+                                <tr key={cp.id} className="hover:bg-surface-subtle/50">
+                                  <th scope="row" className="text-left font-mono text-xs font-semibold text-ink tabular-nums">
+                                    #{cp.batch_number}
+                                  </th>
+                                  <td className="font-mono text-xs text-muted tabular-nums">
+                                    #E{cp.execution_id}
+                                  </td>
+                                  <td className="font-mono text-xs text-ink">
+                                    {cp.cursor_start} → {cp.cursor_end}
+                                  </td>
+                                  <td className="text-right font-mono text-xs text-ink tabular-nums">
+                                    {formatNumber(cp.rows_affected)}
+                                  </td>
+                                  <td>
+                                    {cp.status === 'committed' ? (
+                                      <Badge tone="ok">
+                                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                                        <span>committed</span>
+                                      </Badge>
+                                    ) : cp.status === 'reverted' ? (
+                                      <Badge tone="neutral">reverted</Badge>
+                                    ) : (
+                                      <Badge tone="danger">
+                                        <XCircle className="h-3 w-3" aria-hidden="true" />
+                                        <span>{cp.status}</span>
+                                      </Badge>
+                                    )}
+                                  </td>
+                                  <td className="text-right font-mono text-xs text-muted tabular-nums">
+                                    {cp.duration_ms} ms
+                                  </td>
+                                  <td className="max-w-xs text-xs text-danger">
+                                    {cp.error ? (
+                                      <span>
+                                        {cp.error}
+                                        {cp.sqlstate ? ` (${cp.sqlstate})` : ''}
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </TableShell>
+                      ) : (
+                        <p className="text-xs text-muted">Belum ada checkpoint batch yang tercatat.</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Executed SQL Copy */}
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 border-t border-border pt-4">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
                       <Code2 className="h-4 w-4 text-accent" aria-hidden="true" />
@@ -684,122 +899,6 @@ export function MigrationHistoryPage() {
                     {detail.sql_executed}
                   </pre>
                 </div>
-
-                {/* Batch Summary & Checkpoints */}
-                {(detail.execution_mode === 'batch' || (detail.checkpoints && detail.checkpoints.length > 0)) && (
-                  <div className="space-y-3 border-t border-border pt-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 id={checkpointsCaptionId} className="text-sm font-semibold text-ink">
-                        Progres &amp; Checkpoints Batch
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted tabular-nums">
-                        <span>
-                          Committed:{' '}
-                          <strong className="text-ink">
-                            {detail.completed_batches}/{detail.total_batches}
-                          </strong>{' '}
-                          batch ({formatNumber(detail.rows_affected)} rows)
-                        </span>
-                        {detail.reverted_batches > 0 && (
-                          <span>
-                            Reverted:{' '}
-                            <strong className="text-warn">{detail.reverted_batches}</strong> batch (
-                            {formatNumber(detail.reverted_rows)} rows)
-                          </span>
-                        )}
-                        {detail.last_cursor && (
-                          <span>
-                            Cursor terakhir:{' '}
-                            <code className="font-mono text-ink">{detail.last_cursor}</code>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {detail.total_batches > 0 && (
-                      <progress
-                        value={
-                          detail.action === 'batch_revert'
-                            ? detail.reverted_batches
-                            : detail.completed_batches
-                        }
-                        max={detail.total_batches}
-                        aria-label="Progres batch execution"
-                        className="h-2 w-full overflow-hidden rounded-full"
-                      />
-                    )}
-
-                    {detail.checkpoints && detail.checkpoints.length > 0 ? (
-                      <TableShell ariaLabelledBy={checkpointsCaptionId}>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th scope="col">Batch</th>
-                              <th scope="col">Exec</th>
-                              <th scope="col">Rentang Cursor</th>
-                              <th scope="col" className="text-right">
-                                Rows
-                              </th>
-                              <th scope="col">Status</th>
-                              <th scope="col" className="text-right">
-                                Durasi
-                              </th>
-                              <th scope="col">Error / Catatan</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {detail.checkpoints.map((cp) => (
-                              <tr key={cp.id} className="hover:bg-surface-subtle/50">
-                                <th scope="row" className="text-left font-mono text-xs font-semibold text-ink tabular-nums">
-                                  #{cp.batch_number}
-                                </th>
-                                <td className="font-mono text-xs text-muted tabular-nums">
-                                  #E{cp.execution_id}
-                                </td>
-                                <td className="font-mono text-xs text-ink">
-                                  {cp.cursor_start} → {cp.cursor_end}
-                                </td>
-                                <td className="text-right font-mono text-xs text-ink tabular-nums">
-                                  {formatNumber(cp.rows_affected)}
-                                </td>
-                                <td>
-                                  {cp.status === 'committed' ? (
-                                    <Badge tone="ok">
-                                      <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                                      <span>committed</span>
-                                    </Badge>
-                                  ) : cp.status === 'reverted' ? (
-                                    <Badge tone="neutral">reverted</Badge>
-                                  ) : (
-                                    <Badge tone="danger">
-                                      <XCircle className="h-3 w-3" aria-hidden="true" />
-                                      <span>{cp.status}</span>
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="text-right font-mono text-xs text-muted tabular-nums">
-                                  {cp.duration_ms} ms
-                                </td>
-                                <td className="max-w-xs text-xs text-danger">
-                                  {cp.error ? (
-                                    <span>
-                                      {cp.error}
-                                      {cp.sqlstate ? ` (${cp.sqlstate})` : ''}
-                                    </span>
-                                  ) : (
-                                    <span className="text-muted">—</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </TableShell>
-                    ) : (
-                      <p className="text-xs text-muted">Belum ada checkpoint batch yang tercatat.</p>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </section>

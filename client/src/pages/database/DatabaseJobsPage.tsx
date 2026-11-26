@@ -19,6 +19,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge, StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SkeletonLine } from '@/components/ui/Skeleton';
 import { TableShell } from '@/components/ui/TableShell';
 
@@ -95,7 +96,7 @@ export function DatabaseJobsPage() {
     return jobs.some((j) => !isTerminalJobStatus(j.status));
   }, [jobs, lockInfo]);
 
-  // Smart polling: poll every 1.5s only while non-terminal jobs or held lock exist
+  // Smart polling: poll every 500ms only while non-terminal jobs or held lock exist
   useEffect(() => {
     if (!hasActiveWork) return;
     const timer = window.setInterval(() => {
@@ -104,7 +105,7 @@ export function DatabaseJobsPage() {
       if (selectedJobId) {
         void loadJobDetail(selectedJobId, true);
       }
-    }, 1500);
+    }, 500);
     return () => window.clearInterval(timer);
   }, [hasActiveWork, loadJobDetail, loadJobs, refreshLock, selectedJobId]);
 
@@ -185,7 +186,7 @@ export function DatabaseJobsPage() {
             {hasActiveWork ? (
               <Badge tone="accent">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-                <span>Live Polling (1.5s)</span>
+                <span>Live Polling (0.5s)</span>
               </Badge>
             ) : (
               <Badge tone="neutral">Idle</Badge>
@@ -461,15 +462,24 @@ export function DatabaseJobsPage() {
                         rows
                       </span>
                     </div>
-                    <progress
+                    <ProgressBar
                       value={
                         detailExec.action === 'batch_revert'
                           ? detailExec.reverted_batches
                           : detailExec.completed_batches
                       }
                       max={Math.max(detailExec.total_batches, 1)}
-                      aria-label="Progres batch job"
-                      className="h-2 w-full overflow-hidden rounded-full"
+                      label="Progres batch job"
+                      active={!isTerminalJobStatus(selectedDetail.job.status)}
+                      tone={
+                        selectedDetail.job.status === 'completed'
+                          ? 'ok'
+                          : selectedDetail.job.status === 'failed' || selectedDetail.job.status === 'uncertain'
+                            ? 'danger'
+                            : selectedDetail.job.status === 'partial' || selectedDetail.job.status === 'partially_reverted'
+                              ? 'warn'
+                              : 'accent'
+                      }
                     />
                     {detailExec.last_cursor && (
                       <p className="font-mono text-[11px] text-muted">
