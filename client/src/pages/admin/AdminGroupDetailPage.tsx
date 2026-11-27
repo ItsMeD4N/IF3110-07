@@ -34,32 +34,26 @@ export function AdminGroupDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Group info form
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoError, setInfoError] = useState('');
   const infoNameRef = useRef<HTMLInputElement>(null);
 
-  // Leader selection (M2 contract)
   const [selectedLeaderId, setSelectedLeaderId] = useState('');
   const [savingLeader, setSavingLeader] = useState(false);
   const [leaderNote, setLeaderNote] = useState('');
 
-  // Add member form
   const [selectedUserId, setSelectedUserId] = useState('');
   const [addingMember, setAddingMember] = useState(false);
 
-  // Add grant form
   const [selectedConnId, setSelectedConnId] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<Exclude<AccessLevel, 'none'>>('view_only');
   const [savingGrant, setSavingGrant] = useState(false);
 
-  // Inline grant level draft edits per connectionId (explicit submit, no auto-submit on change)
   const [grantLevels, setGrantLevels] = useState<Record<number, Exclude<AccessLevel, 'none'>>>({});
   const [updatingConnId, setUpdatingConnId] = useState<number | null>(null);
 
-  // Confirmations
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState(false);
   const [removingMember, setRemovingMember] = useState<{ id: string; username: string } | null>(null);
@@ -335,7 +329,6 @@ export function AdminGroupDetailPage() {
       />
 
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Card 1: Informasi Group */}
         <section className="card-surface p-5" aria-labelledby={infoFormId}>
           <h2 id={infoFormId} className="text-base font-semibold text-ink">
             Informasi Group
@@ -388,7 +381,6 @@ export function AdminGroupDetailPage() {
           </form>
         </section>
 
-        {/* Card 2: Leader Group (Milestone 2 Approval Workflow) */}
         <section className="card-surface p-5" aria-labelledby={leaderFormId}>
           <div className="flex items-center justify-between gap-2">
             <h2 id={leaderFormId} className="inline-flex items-center gap-2 text-base font-semibold text-ink">
@@ -451,7 +443,6 @@ export function AdminGroupDetailPage() {
           </form>
         </section>
 
-        {/* Card 3: Anggota Group */}
         <section className="card-surface p-5" aria-labelledby={memberFormId}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 id={memberFormId} className="text-base font-semibold text-ink">
@@ -534,7 +525,6 @@ export function AdminGroupDetailPage() {
           )}
         </section>
 
-        {/* Card 4: Hak Akses Database (Grants) */}
         <section className="card-surface p-5" aria-labelledby={grantFormId}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 id={grantFormId} className="inline-flex items-center gap-2 text-base font-semibold text-ink">

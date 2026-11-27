@@ -94,14 +94,12 @@ export function MigrationDefinitionsPage() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
 
-  // Selected definition or create-new mode
   const [mode, setMode] = useState<'create' | 'inspect'>('create');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editor, setEditor] = useState<EditorState>(EMPTY_EDITOR);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Async action confirmation & tracking
   const [pendingAction, setPendingAction] = useState<{
     kind: PendingActionKind;
     def: MigrationDefinition;
@@ -140,7 +138,6 @@ export function MigrationDefinitionsPage() {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [database.id]);
 
   useEffect(() => {
@@ -152,7 +149,6 @@ export function MigrationDefinitionsPage() {
     [definitions, selectedId],
   );
 
-  // Sync editor whenever switching to an existing definition in inspect mode
   useEffect(() => {
     if (mode === 'inspect' && selectedDef) {
       setEditor(definitionToEditor(selectedDef));
@@ -359,7 +355,6 @@ export function MigrationDefinitionsPage() {
 
   return (
     <div className="space-y-5">
-      {/* Live Job Progress Banner */}
       {trackedJob && (
         <LiveJobTracker
           dbId={database.id}
@@ -370,7 +365,6 @@ export function MigrationDefinitionsPage() {
         />
       )}
 
-      {/* Action / Business Error Alert */}
       {actionError && (
         <Alert
           variant="error"
@@ -400,7 +394,6 @@ export function MigrationDefinitionsPage() {
         </Alert>
       )}
 
-      {/* Top Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
           <span className="tabular-nums">
@@ -433,7 +426,6 @@ export function MigrationDefinitionsPage() {
       {listError && <Alert variant="error">{listError}</Alert>}
 
       <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
-        {/* Left: Definitions List */}
         <section aria-label="Daftar definisi migration" className="card-surface p-3.5">
           <h2 className="mb-2.5 flex items-center gap-1.5 px-1 text-sm font-semibold text-ink">
             <GitBranch className="h-4 w-4 text-accent" aria-hidden="true" />
@@ -510,7 +502,6 @@ export function MigrationDefinitionsPage() {
           )}
         </section>
 
-        {/* Right: Editor / Inspector & Async Actions */}
         <section className="card-surface p-5" aria-labelledby={editorHeadingId}>
           <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -534,7 +525,6 @@ export function MigrationDefinitionsPage() {
               )}
             </div>
 
-            {/* Async Actions for selected existing definition */}
             {mode === 'inspect' && selectedDef && canEdit && (
               <div className="flex flex-wrap items-center gap-2">
                 {!selectedDef.is_active && !selectedDef.can_forward && (
@@ -590,7 +580,6 @@ export function MigrationDefinitionsPage() {
           )}
 
           <form aria-labelledby={editorHeadingId} onSubmit={handleSaveDefinition} className="mt-4 space-y-5" noValidate>
-            {/* Name */}
             <div className="space-y-1">
               <label htmlFor="mig-name" className="block text-sm font-medium text-ink">
                 Nama Migration
@@ -608,7 +597,6 @@ export function MigrationDefinitionsPage() {
               />
             </div>
 
-            {/* Execution Mode + Reversibility (visible radios, 2 options each) */}
             <div className="grid gap-4 md:grid-cols-2">
               <fieldset className="space-y-2 rounded-lg border border-border bg-surface-subtle/40 p-3.5">
                 <legend className="px-1 text-xs font-semibold text-muted uppercase">
@@ -699,7 +687,6 @@ export function MigrationDefinitionsPage() {
               </fieldset>
             </div>
 
-            {/* Batch Configuration Panel */}
             {editor.execution_mode === 'batch' && (
               <fieldset className="space-y-3.5 rounded-lg border border-accent/30 bg-accent-soft/20 p-4">
                 <legend className="px-1 text-xs font-semibold text-accent uppercase">
@@ -872,7 +859,6 @@ export function MigrationDefinitionsPage() {
               </fieldset>
             )}
 
-            {/* SQL Up Editor */}
             <div className="space-y-2">
               <label htmlFor="mig-sql-up" className="block text-sm font-medium text-ink">
                 SQL Up <span aria-hidden="true" className="text-danger">*</span>
@@ -905,7 +891,6 @@ export function MigrationDefinitionsPage() {
               )}
             </div>
 
-            {/* SQL Down OR Irreversible Reason */}
             {editor.is_irreversible ? (
               <div className="space-y-1.5">
                 <label htmlFor="mig-irrev-reason" className="block text-sm font-medium text-ink">
@@ -961,7 +946,6 @@ export function MigrationDefinitionsPage() {
               </div>
             )}
 
-            {/* Submit Actions */}
             {!formReadOnly && (
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
                 {mode === 'create' && definitions.length > 0 && (

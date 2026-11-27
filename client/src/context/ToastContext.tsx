@@ -112,7 +112,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
 
-      {/* Pre-populated hidden live region fallback when document.ariaNotify() is unavailable */}
       <p className="sr-only-live">Notifikasi aplikasi</p>
       <div className="sr-only-live" aria-live="polite" aria-atomic="true">
         {liveAnnouncement}

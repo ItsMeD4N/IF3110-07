@@ -11,7 +11,6 @@ import type {
   GroupMember,
 } from '@/types/api';
 
-// Users
 export async function listUsers(): Promise<AuthUser[]> {
   const res = await apiRequest<{ users: AuthUser[] }>('/api/admin/users');
   return res.users ?? [];
@@ -47,7 +46,6 @@ export async function deleteUser(userId: string): Promise<{ message: string }> {
   return apiRequest(`/api/admin/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
 }
 
-// Groups & Grants
 export async function listGroups(): Promise<Group[]> {
   const res = await apiRequest<{ groups: Group[] }>('/api/admin/groups');
   return res.groups ?? [];
@@ -109,7 +107,6 @@ export async function deleteGroupGrant(groupId: number, connectionId: number): P
   await apiRequest<void>(`/api/admin/groups/${groupId}/grants/${connectionId}`, { method: 'DELETE' });
 }
 
-// Connections
 export async function listConnections(): Promise<DBConnection[]> {
   const res = await apiRequest<{ connections: DBConnection[] }>('/api/admin/connections');
   return res.connections ?? [];

@@ -56,7 +56,7 @@ func TestSummarizeAndFinalize(t *testing.T) {
 		Approvals: []Decision{
 			{GroupID: i64(1), LeaderUserID: str("u1"), Decision: DecisionApproved},
 			{GroupID: i64(2), LeaderUserID: str("u2"), Decision: DecisionPending},
-			{GroupID: nil, Decision: DecisionPending}, // group sudah dihapus: tidak dihitung
+			{GroupID: nil, Decision: DecisionPending},
 		},
 	}
 	finalize(&r, &authz.Principal{ID: "u2"})

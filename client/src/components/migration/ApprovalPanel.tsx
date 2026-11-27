@@ -50,14 +50,12 @@ export function ApprovalPanel({
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [loadError, setLoadError] = useState('');
 
-  // Submit review dialog
   const [submitOpen, setSubmitOpen] = useState(false);
   const [submitAction, setSubmitAction] = useState<MigrationAction>('up');
   const [submitNote, setSubmitNote] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Leader decision dialog (approve / reject)
   const [decisionTarget, setDecisionTarget] = useState<{
     req: ApprovalRequest;
     kind: 'approve' | 'reject';
@@ -267,7 +265,6 @@ export function ApprovalPanel({
         </div>
       )}
 
-      {/* Submit Review Dialog */}
       <FormDialog
         open={submitOpen}
         title={`Ajukan Review — v${definition.version} ${definition.name}`}
@@ -334,7 +331,6 @@ export function ApprovalPanel({
         </form>
       </FormDialog>
 
-      {/* Approve / Reject Decision Dialog */}
       <FormDialog
         open={Boolean(decisionTarget)}
         title={

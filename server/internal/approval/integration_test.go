@@ -199,7 +199,6 @@ func TestWorkflow_FullLifecycleWithMultiGroupApproval(t *testing.T) {
 		t.Fatalf("request %d tidak muncul di inbox leader viewer: %+v", req.ID, inbox)
 	}
 
-
 	f.decide(t, f.dev2, req.ID, "approve", "", http.StatusForbidden)
 
 	f.decide(t, f.outsider, req.ID, "approve", "", http.StatusNotFound)
@@ -439,7 +438,6 @@ func TestHistory_FiltersAndFailedAttemptsRecorded(t *testing.T) {
 	apptest.Expect(t, f.e.Do(f.outsider, "GET", f.path("/migrations/executions"), nil), http.StatusNotFound)
 }
 
-// Satu approval hanya boleh dipakai satu job walaupun enqueue dikirim bersamaan.
 func TestWorkflow_ConcurrentEnqueueConsumesApprovalOnce(t *testing.T) {
 	f := setup(t, true)
 	def := f.createDef(t, "race", fmt.Sprintf(`CREATE TABLE %s (id int);`, f.table("race")), fmt.Sprintf(`DROP TABLE %s;`, f.table("race")))
@@ -473,7 +471,6 @@ func TestWorkflow_ConcurrentEnqueueConsumesApprovalOnce(t *testing.T) {
 	}
 }
 
-// Request duplikat dengan Idempotency-Key yang sama dideduplikasi (bukan 403).
 func TestWorkflow_IdempotentRetryKeepsApproval(t *testing.T) {
 	f := setup(t, true)
 	def := f.createDef(t, "idem", fmt.Sprintf(`CREATE TABLE %s (id int);`, f.table("idem")), fmt.Sprintf(`DROP TABLE %s;`, f.table("idem")))
@@ -489,7 +486,7 @@ func TestWorkflow_IdempotentRetryKeepsApproval(t *testing.T) {
 		if !second.Deduplicated || second.JobID != first.JobID {
 			t.Fatalf("retry = %+v, want dedup job %s", second, first.JobID)
 		}
-	} else if rec2.Code != http.StatusConflict { // already_active jika job pertama sudah selesai
+	} else if rec2.Code != http.StatusConflict {
 		t.Fatalf("retry status = %d body %s", rec2.Code, rec2.Body.String())
 	}
 	f.waitJob(t, first.JobID)

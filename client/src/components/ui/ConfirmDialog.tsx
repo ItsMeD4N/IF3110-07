@@ -13,10 +13,6 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-/**
- * Accessible native modal <dialog> using showModal().
- * Omits redundant role="dialog"/aria-modal/manual Esc trap per native modal dialog spec.
- */
 export function ConfirmDialog({
   open,
   title,
@@ -57,7 +53,6 @@ export function ConfirmDialog({
 
     dialog.addEventListener('close', handleClose);
 
-    // Progressive enhancement fallback for click-outside light dismiss where closedby="any" is unsupported
     const supportsClosedBy = 'closedBy' in HTMLDialogElement.prototype;
     let pressedOutside = false;
 

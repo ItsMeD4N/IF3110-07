@@ -189,7 +189,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     scroller.scrollTo({ left: scroller.offsetWidth, behavior: 'auto' });
   }, []);
 
-  // Close drawer on route change
   useEffect(() => {
     const drawer = drawerRef.current;
     if (drawer?.open) {
@@ -198,7 +197,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   }, [location.pathname]);
 
-  // IntersectionObserver source of truth + scroll backdrop fallback
   useEffect(() => {
     const drawer = drawerRef.current;
     const scroller = scrollerRef.current;
@@ -272,12 +270,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
-      {/* Desktop persistent sidebar */}
       <aside className="hidden border-r border-border bg-sidebar lg:sticky lg:top-0 lg:block lg:h-dvh">
         <SidebarContent onSignOut={handleSignOut} signingOut={signingOut} />
       </aside>
 
-      {/* Mobile swipeable navigation drawer (<dialog>) */}
       <dialog
         ref={drawerRef}
         id={drawerId}
@@ -309,7 +305,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       </dialog>
 
       <div className="flex min-w-0 flex-col">
-        {/* Mobile top navigation bar */}
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border bg-sidebar px-4 py-2.5 lg:hidden">
           <button
             type="button"

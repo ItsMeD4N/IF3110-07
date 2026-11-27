@@ -1,0 +1,12 @@
+name: IF3110-07 CodeQL config
+
+paths:
+  - server
+  - client/src
+
+paths-ignore:
+  - client/dist
+  - client/node_modules
+  - client/static
+  - "**/*_test.go"
+  - loadtest

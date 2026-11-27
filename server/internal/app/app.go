@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/admin"
@@ -16,6 +17,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/dblock"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/dbmanager"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/metrics"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/migration"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/queue"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/session"
@@ -37,6 +39,9 @@ type Options struct {
 	ApprovalChecker   migration.ApprovalChecker
 	PollInterval      time.Duration
 	LockTTL           time.Duration
+	DisableLegacySync bool
+	EnableMetrics     bool
+	APIOnly           bool
 }
 
 type App struct {
@@ -59,9 +64,10 @@ func New(db *sql.DB, opt Options) (*App, error) {
 		spaDir = web.FindSPADir(opt.ClientDir)
 	}
 	useSPA := opt.ServeSPA && spaDir != ""
+	apiOnly := opt.APIOnly && !useSPA
 
 	var views *web.Views
-	if !useSPA {
+	if !useSPA && !apiOnly {
 		var err error
 		views, err = web.New(opt.ClientDir, !isProd)
 		if err != nil {
@@ -138,6 +144,13 @@ func New(db *sql.DB, opt Options) (*App, error) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "timestamp": time.Now().Format(time.RFC3339)})
 	})
 
+	if opt.EnableMetrics {
+		metrics.RegisterDBPool("platform", db.Stats)
+		metrics.RegisterDBPool("target", adminMod.Conns.Stats)
+		metrics.RegisterJobStatusGauge(db)
+		mux.Handle("GET /metrics", metrics.Handler())
+	}
+
 	auth.RegisterRoutes(mux, users, sessions)
 	user.RegisterRoutes(mux, users, sessions)
 	csrf.RegisterRoutes(mux)
@@ -146,6 +159,7 @@ func New(db *sql.DB, opt Options) (*App, error) {
 
 	migMod := migration.New(db, adminMod.Conns, adminMod.Authz, users, sessions, views)
 	migMod.Engine = engine
+	migMod.DisableLegacySync = opt.DisableLegacySync
 	migMod.RegisterRoutes(mux)
 
 	(&approval.Handler{Svc: approvals, Engine: engine, MW: migMod.MW, AuthMW: migMod.AuthMW}).RegisterRoutes(mux)
@@ -155,6 +169,16 @@ func New(db *sql.DB, opt Options) (*App, error) {
 			httpx.NotFound(w)
 		})
 		mux.Handle("/", web.SPAHandler(spaDir))
+	} else if apiOnly {
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				httpx.NotFound(w)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("SPA belum di-build. Jalankan `npm install && npm run build` di folder client lalu restart server, atau buka Vite dev server (npm run dev) di http://localhost:5173.\n"))
+		})
 	} else {
 		mux.Handle("GET /static/", web.StaticHandler(opt.ClientDir))
 		loginpage.New(users, sessions, views).RegisterRoutes(mux)
@@ -169,6 +193,9 @@ func New(db *sql.DB, opt Options) (*App, error) {
 		}
 		return ""
 	})(h)
+	if opt.EnableMetrics {
+		h = metrics.HTTPMiddleware(h)
+	}
 
 	return &App{
 		Handler:    h,

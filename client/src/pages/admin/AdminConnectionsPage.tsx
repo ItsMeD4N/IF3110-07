@@ -57,7 +57,6 @@ export function AdminConnectionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Form panel (inline so admin can edit + test without losing connection list context)
   const [panelOpen, setPanelOpen] = useState(false);
   const [editingConn, setEditingConn] = useState<DBConnection | null>(null);
   const [form, setForm] = useState<ConnFormState>(DEFAULT_FORM);
@@ -67,11 +66,9 @@ export function AdminConnectionsPage() {
   const [testingDraft, setTestingDraft] = useState(false);
   const [draftTestResult, setDraftTestResult] = useState<ConnectionTestResult | null>(null);
 
-  // Per-row saved connection test states
   const [testingRowId, setTestingRowId] = useState<number | null>(null);
   const [rowTestResults, setRowTestResults] = useState<Record<number, ConnectionTestResult>>({});
 
-  // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<DBConnection | null>(null);
   const [deleting, setDeleting] = useState(false);
 

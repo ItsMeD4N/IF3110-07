@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/dblock"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/metrics"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/queue"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 )
@@ -252,6 +253,7 @@ func (e *Engine) executeBatchUpOrResume(
 				break
 			}
 			delay := e.BatchBackoff.NextDelay(try)
+			metrics.BatchRetry(job.Action)
 			telemetry.LogEvent(stepCtx, slog.LevelWarn, "migration.batch_retry",
 				slog.Int64("migration_id", def.ID),
 				slog.Int64("execution_id", exec.ID),
@@ -381,6 +383,7 @@ func (e *Engine) executeBatchUpOrResume(
 		)
 		bSpan.End()
 
+		metrics.BatchCommitted(job.Action, outcome.RowsAffected)
 		telemetry.LogEvent(batchCtx, slog.LevelInfo, "migration.batch_committed",
 			slog.Int64("migration_id", def.ID),
 			slog.Int64("execution_id", exec.ID),
@@ -774,6 +777,7 @@ func (e *Engine) executeBatchRevert(
 
 		bSpan.SetAttributes(attribute.Int64("migration.batch_reverted_rows", affected))
 		bSpan.End()
+		metrics.BatchCommitted(job.Action, affected)
 
 		telemetry.LogEvent(bCtx, slog.LevelInfo, "migration.batch_reverted",
 			slog.Int64("migration_id", def.ID),

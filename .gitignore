@@ -1,8 +1,8 @@
 docs/
 node_modules/
 client/dist/
+client/.vite/
 
-# Binaries and build artifacts
 *.exe
 *.exe~
 *.dll
@@ -12,15 +12,15 @@ client/dist/
 *.out
 server/server.exe
 
-# Archives
 *.tar.gz
 *.tgz
 *.zip
 
-# Local environment and caches
 .env
 .env.*
 !.env.example
 *.log
 *.tmp
 
+logs/
+codeql-db-*/

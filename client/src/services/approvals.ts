@@ -1,9 +1,6 @@
 import { apiRequest } from '@/lib/api';
 import type { ApprovalRequest, MigrationAction } from '@/types/api';
 
-/**
- * Contract endpoints defined in /api_contract.md Section 2.2 (Workflow & Multi-Group Leader Approval).
- */
 export async function submitApprovalRequest(
   dbId: number,
   migrationId: number,

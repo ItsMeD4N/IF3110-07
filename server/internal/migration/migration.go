@@ -47,6 +47,8 @@ type Module struct {
 	AuthMW     *auth.Middleware
 	Views      *web.Views
 	Engine     *Engine
+
+	DisableLegacySync bool
 }
 
 type Record struct {

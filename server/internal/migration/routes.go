@@ -64,6 +64,11 @@ func (m *Module) legacyGate(next http.HandlerFunc) http.HandlerFunc {
 				"Eksekusi langsung dinonaktifkan: buat definisi migration, ajukan review ke leader group, lalu jalankan lewat queue.")
 			return
 		}
+		if m.DisableLegacySync {
+			httpx.WriteError(w, http.StatusForbidden, "queue_required",
+				"Eksekusi sinkron dinonaktifkan: seluruh migration dijalankan secara asynchronous lewat queue dan worker.")
+			return
+		}
 		next(w, r)
 	}
 }

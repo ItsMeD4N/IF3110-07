@@ -18,6 +18,7 @@ import (
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/dblock"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/metrics"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/queue"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 )
@@ -332,6 +333,7 @@ func (e *Engine) HandleJob(ctx context.Context, job *queue.Job) queue.JobOutcome
 		ownerID = fmt.Sprintf("%s-%s", host, uuid.NewString()[:6])
 	}
 
+	lockStart := time.Now()
 	lease, err := e.Locker.Acquire(ctx, dblock.AcquireRequest{
 		DatabaseID:              job.DatabaseID,
 		OwnerID:                 ownerID,
@@ -341,7 +343,13 @@ func (e *Engine) HandleJob(ctx context.Context, job *queue.Job) queue.JobOutcome
 	})
 	if err != nil {
 		if errors.Is(err, dblock.ErrLockHeld) {
+			metrics.LockWait("contended", time.Since(lockStart))
 			return queue.JobOutcome{LockContended: true}
+		}
+		if errors.Is(err, dblock.ErrDatabaseBlocked) {
+			metrics.LockWait("blocked", time.Since(lockStart))
+		} else {
+			metrics.LockWait("error", time.Since(lockStart))
 		}
 		return queue.JobOutcome{
 			Status: queue.StatusFailed,
@@ -401,9 +409,11 @@ func (e *Engine) HandleJob(ctx context.Context, job *queue.Job) queue.JobOutcome
 		}
 	}
 	if !acquired {
+		metrics.LockWait("contended", time.Since(lockStart))
 		return queue.JobOutcome{LockContended: true}
 	}
 	defer func() { dblock.ReleaseTargetAdvisory(context.WithoutCancel(ctx), conn) }()
+	metrics.LockWait("acquired", time.Since(lockStart))
 
 	tables, err := ensureTargetMeta(leaseCtx, conn)
 	if err != nil {

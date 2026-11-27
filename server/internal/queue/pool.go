@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/metrics"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 )
 
@@ -236,6 +237,7 @@ func (p *WorkerPool) executeJob(parent context.Context, workerID string, job *Jo
 	defer span.End()
 
 	start := time.Now()
+	metrics.JobStarted(job.Action, job.RunAt)
 	telemetry.LogEvent(jobCtx, slog.LevelInfo, "worker.job_claimed",
 		slog.String("worker_id", workerID),
 		slog.String("job_id", job.ID),
@@ -284,6 +286,8 @@ func (p *WorkerPool) executeJob(parent context.Context, workerID string, job *Jo
 	if outcome.LockContended {
 		nextAt := time.Now().UTC().Add(p.opts.ContentionDelay)
 		_ = p.broker.RescheduleContended(finalizeCtx, job.ID, nextAt)
+		metrics.JobAttemptDone(job.Action, "contended", time.Since(start))
+		metrics.LockContended(job.Action)
 		span.SetAttributes(attribute.Bool("job.lock_contended", true))
 		telemetry.LogEvent(jobCtx, slog.LevelInfo, "worker.job_contended",
 			slog.String("worker_id", workerID),
@@ -295,6 +299,8 @@ func (p *WorkerPool) executeJob(parent context.Context, workerID string, job *Jo
 	}
 
 	if outcome.Err == nil && (outcome.Status == "" || outcome.Status == StatusCompleted) {
+		metrics.JobAttemptDone(job.Action, string(StatusCompleted), time.Since(start))
+		metrics.JobFinished(job.Action, string(StatusCompleted), job.CreatedAt)
 		if err := p.broker.Complete(finalizeCtx, job.ID, outcome.ExecutionID); err != nil {
 			span.RecordError(err)
 			telemetry.LogEvent(jobCtx, slog.LevelError, "worker.job_complete_update_failed",
@@ -333,6 +339,8 @@ func (p *WorkerPool) executeJob(parent context.Context, workerID string, job *Jo
 		delay := p.opts.Backoff.NextDelay(job.Attempt)
 		nextAt := time.Now().UTC().Add(delay)
 		_ = p.broker.Retry(finalizeCtx, job.ID, outcome.ExecutionID, nextAt, errMsg, sqlState)
+		metrics.JobAttemptDone(job.Action, string(StatusRetrying), time.Since(start))
+		metrics.JobRetry(job.Action)
 		span.SetAttributes(
 			attribute.Bool("job.retrying", true),
 			attribute.Int64("job.retry_delay_ms", delay.Milliseconds()),
@@ -356,6 +364,8 @@ func (p *WorkerPool) executeJob(parent context.Context, workerID string, job *Jo
 		finalStatus = StatusFailed
 	}
 	_ = p.broker.MarkStatus(finalizeCtx, job.ID, finalStatus, outcome.ExecutionID, errMsg, sqlState)
+	metrics.JobAttemptDone(job.Action, string(finalStatus), time.Since(start))
+	metrics.JobFinished(job.Action, string(finalStatus), job.CreatedAt)
 	telemetry.LogEvent(jobCtx, slog.LevelError, "worker.job_finished_unsuccessful",
 		slog.String("worker_id", workerID),
 		slog.String("job_id", job.ID),

@@ -96,7 +96,6 @@ export function DatabaseJobsPage() {
     return jobs.some((j) => !isTerminalJobStatus(j.status));
   }, [jobs, lockInfo]);
 
-  // Smart polling: poll every 500ms only while non-terminal jobs or held lock exist
   useEffect(() => {
     if (!hasActiveWork) return;
     const timer = window.setInterval(() => {
@@ -141,7 +140,6 @@ export function DatabaseJobsPage() {
 
   return (
     <div className="space-y-5">
-      {/* Database Lock Inspector Card */}
       <section aria-label="Status lock database" className="card-surface p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -247,7 +245,6 @@ export function DatabaseJobsPage() {
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      {/* Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div role="group" aria-label="Filter status job" className="inline-flex flex-wrap gap-1.5">
           {(
@@ -306,7 +303,6 @@ export function DatabaseJobsPage() {
         />
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] xl:items-start">
-          {/* Jobs List Table */}
           <TableShell ariaLabelledBy={jobsCaptionId}>
             <table>
               <caption id={jobsCaptionId} className="sr-only-live">
@@ -368,7 +364,6 @@ export function DatabaseJobsPage() {
             </table>
           </TableShell>
 
-          {/* Job + Execution Live Inspector */}
           <section className="card-surface p-5" aria-label="Detail job terpilih">
             {loadingDetail && !selectedDetail ? (
               <div className="space-y-3" role="status" aria-label="Memuat detail job">

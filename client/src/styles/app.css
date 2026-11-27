@@ -24,7 +24,6 @@
   --color-warn-soft: var(--warn-soft);
 }
 
-/* Light & Dark semantic tokens on :root so viewport canvas & browser chrome adapt cleanly */
 :root {
   color-scheme: light dark;
 
@@ -69,7 +68,6 @@
   --scrollbar-thumb-light: #6d7787;
   --scrollbar-thumb-dark: #7d8899;
 
-  /* Default (light) + prefers-color-scheme fallback for browsers without light-dark() */
   --bg: var(--bg-light);
   --surface: var(--surface-light);
   --surface-subtle: var(--surface-subtle-light);
@@ -205,7 +203,6 @@
   box-shadow: var(--shadow-card);
 }
 
-/* Native modal <dialog>: scroll containment without locking html/body overflow */
 dialog:modal {
   overscroll-behavior: contain;
 }
@@ -231,7 +228,6 @@ dialog::backdrop {
   background: rgb(10 15 28 / 55%);
 }
 
-/* Swipeable Mobile Navigation Drawer using native <dialog> + CSS scroll-snap */
 .Drawer {
   --drawer-width: min(18.5rem, 82dvw, calc(100dvw - 24px));
   --drawer-backdrop: 0;
@@ -313,7 +309,6 @@ dialog::backdrop {
   initial-value: 0;
 }
 
-/* Accessible scrollable data table wrapper with sticky thead */
 .table-wrapper {
   overflow: auto;
   max-inline-size: 100%;
@@ -362,7 +357,6 @@ dialog::backdrop {
   border-bottom: 0;
 }
 
-/* Toast notifications entry animation respecting reduced motion */
 @media (prefers-reduced-motion: no-preference) {
   .toast-item {
     transition: opacity 180ms ease-out, transform 180ms ease-out;
@@ -381,7 +375,6 @@ dialog::backdrop {
   border: 0;
 }
 
-/* Single-row scrollable tab strip & sub-navigation with forced-colors-safe underline indicator */
 .tab-strip {
   display: flex;
   flex-wrap: nowrap;

@@ -256,6 +256,25 @@ func (m *Manager) Invalidate(id int64) {
 	}
 }
 
+func (m *Manager) Stats() sql.DBStats {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out sql.DBStats
+	for _, e := range m.pools {
+		s := e.db.Stats()
+		out.MaxOpenConnections += s.MaxOpenConnections
+		out.OpenConnections += s.OpenConnections
+		out.InUse += s.InUse
+		out.Idle += s.Idle
+		out.WaitCount += s.WaitCount
+		out.WaitDuration += s.WaitDuration
+		out.MaxIdleClosed += s.MaxIdleClosed
+		out.MaxIdleTimeClosed += s.MaxIdleTimeClosed
+		out.MaxLifetimeClosed += s.MaxLifetimeClosed
+	}
+	return out
+}
+
 func (m *Manager) Close() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

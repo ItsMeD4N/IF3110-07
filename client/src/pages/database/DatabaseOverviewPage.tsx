@@ -98,7 +98,6 @@ export function DatabaseOverviewPage() {
         )}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Status Koneksi & Lock */}
         <section className="card-surface p-5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-base font-semibold text-ink">Status Koneksi &amp; Lock</h2>
@@ -187,7 +186,6 @@ export function DatabaseOverviewPage() {
           )}
         </section>
 
-        {/* Hak Akses Efektif */}
         <section className="card-surface p-5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="inline-flex items-center gap-2 text-base font-semibold text-ink">
@@ -214,7 +212,6 @@ export function DatabaseOverviewPage() {
         </section>
       </div>
 
-      {/* Pintasan Aksi Cepat */}
       <section className="card-surface p-5">
         <h2 className="text-base font-semibold text-ink">Mulai Bekerja pada Database Ini</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/metrics"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 )
 
@@ -257,6 +258,7 @@ func (b *PostgresBroker) Enqueue(ctx context.Context, req EnqueueRequest) (Job, 
 	if !deduplicated {
 		_, _ = b.db.ExecContext(ctx, `SELECT pg_notify($1, $2)`, notifyChannel, job.ID)
 		b.broadcast()
+		metrics.JobEnqueued(job.Action)
 	}
 
 	telemetry.LogEvent(ctx, slog.LevelInfo, "queue.enqueued",

@@ -62,7 +62,6 @@ export function DatabaseViewerPage() {
   const [loadingSchema, setLoadingSchema] = useState(true);
   const [schemaError, setSchemaError] = useState('');
 
-  // Table Data state
   const [tableData, setTableData] = useState<TableDataResponse | null>(null);
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState('');
@@ -114,8 +113,6 @@ export function DatabaseViewerPage() {
 
   useEffect(() => {
     void loadSchema(initialSchema || undefined);
-    // Only reload schema when database ID changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [database.id]);
 
   const selectedTable: SchemaTable | null = useMemo(() => {
@@ -180,7 +177,6 @@ export function DatabaseViewerPage() {
     syncUrlParams(selectedSchema, selectedTableName, nextTab);
   };
 
-  // Selection by activation for tabs because Data tab fetches rows on demand
   const handleTabKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Home' || e.key === 'End') {
       e.preventDefault();
@@ -252,7 +248,6 @@ export function DatabaseViewerPage() {
 
   return (
     <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
-      {/* Mobile Compact Selector (< lg) */}
       <section className="card-surface space-y-3 p-4 lg:hidden" aria-label="Pemilih schema dan tabel">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
@@ -299,7 +294,6 @@ export function DatabaseViewerPage() {
         </div>
       </section>
 
-      {/* Desktop Left Browser Rail (>= lg) */}
       <aside
         aria-label="Daftar schema dan tabel"
         className="card-surface hidden flex-col p-3.5 lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-4rem)]"
@@ -398,7 +392,6 @@ export function DatabaseViewerPage() {
         </ul>
       </aside>
 
-      {/* Main Viewer Detail Area */}
       <div className="min-w-0 space-y-4">
         {!selectedTable ? (
           <EmptyState
@@ -426,7 +419,6 @@ export function DatabaseViewerPage() {
               </div>
             </div>
 
-            {/* Accessible Tablist (Struktur / Data) */}
             <div role="tablist" aria-label="Mode tampilan tabel" className="tab-strip">
               <button
                 ref={structureTabRef}
@@ -458,14 +450,12 @@ export function DatabaseViewerPage() {
               </button>
             </div>
 
-            {/* Panel 1: Struktur (Columns, Constraints, Indexes) */}
             <div
               role="tabpanel"
               aria-labelledby={structureTabId}
               hidden={activeTab !== 'structure'}
             >
               <div className="space-y-6">
-                {/* Columns */}
                 <section aria-labelledby="cols-heading">
                   <div className="mb-2.5 flex items-center justify-between">
                     <h3
@@ -514,7 +504,6 @@ export function DatabaseViewerPage() {
                   </TableShell>
                 </section>
 
-                {/* Constraints */}
                 <section aria-labelledby="constraints-heading">
                   <div className="mb-2.5 flex items-center justify-between">
                     <h3
@@ -559,7 +548,6 @@ export function DatabaseViewerPage() {
                   )}
                 </section>
 
-                {/* Indexes */}
                 <section aria-labelledby="indexes-heading">
                   <div className="mb-2.5 flex items-center justify-between">
                     <h3
@@ -600,14 +588,12 @@ export function DatabaseViewerPage() {
               </div>
             </div>
 
-            {/* Panel 2: Data */}
             <div
               role="tabpanel"
               aria-labelledby={dataTabId}
               hidden={activeTab !== 'data'}
             >
               <div className="space-y-3">
-                {/* Pagination & Controls Toolbar */}
                 <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted tabular-nums">
                     {tableData ? (

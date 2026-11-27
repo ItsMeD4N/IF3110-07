@@ -17,6 +17,10 @@ type Config struct {
 	OTelServiceName   string
 	OTelExporter      string
 	OTelOTLPEndpoint  string
+	LogFile           string
+	MetricsEnabled    bool
+	WorkerMetricsAddr string
+	LegacySync        bool
 }
 
 func LoadConfig() *Config {
@@ -36,6 +40,10 @@ func LoadConfig() *Config {
 		OTelServiceName:   getEnv("OTEL_SERVICE_NAME", "if3110-db-platform"),
 		OTelExporter:      getEnv("OTEL_TRACES_EXPORTER", defaultExporter),
 		OTelOTLPEndpoint:  getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4318"),
+		LogFile:           strings.TrimSpace(os.Getenv("LOG_FILE")),
+		MetricsEnabled:    getEnvBool("METRICS_ENABLED", true),
+		WorkerMetricsAddr: getEnv("WORKER_METRICS_ADDR", ":9091"),
+		LegacySync:        getEnvBool("LEGACY_SYNC_MIGRATION", false),
 	}
 }
 

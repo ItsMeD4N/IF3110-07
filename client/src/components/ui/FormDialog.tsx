@@ -10,10 +10,6 @@ interface FormDialogProps {
   children: ReactNode;
 }
 
-/**
- * Native modal <dialog> for focused administrative forms (edit/reset actions).
- * Uses showModal() for native focus containment, inert background, and Esc handling.
- */
 export function FormDialog({
   open,
   title,

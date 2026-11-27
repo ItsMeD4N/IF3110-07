@@ -23,7 +23,13 @@ func main() {
 	cfg := config.LoadConfig()
 	ctx := context.Background()
 
-	telemetry.InitLogger(os.Stdout, telemetry.ParseLogLevel(cfg.LogLevel))
+	logOut, closeLog, err := telemetry.LogOutput(os.Stdout, cfg.LogFile)
+	if err != nil {
+		slog.Error("inisialisasi log gagal", "error", err)
+		os.Exit(1)
+	}
+	defer closeLog()
+	telemetry.InitLogger(logOut, telemetry.ParseLogLevel(cfg.LogLevel))
 
 	_, shutdownTrace, err := telemetry.InitTracing(ctx, telemetry.TracingConfig{
 		ServiceName:  cfg.OTelServiceName,
@@ -70,17 +76,29 @@ func main() {
 	}
 
 	spaDir := web.FindSPADir(clientDir)
-	serveSPA := spaDir != "" && os.Getenv("SERVE_SPA") != "false"
+	legacyTemplates := os.Getenv("SERVE_SPA") == "false"
+	serveSPA := spaDir != "" && !legacyTemplates
+	apiOnly := spaDir == "" && !legacyTemplates
+	if apiOnly {
+		telemetry.LogEvent(ctx, slog.LevelWarn, "server.spa_not_built",
+			slog.String("client_dir", clientDir),
+			slog.String("hint", "jalankan `npm install && npm run build` di folder client, atau pakai Vite dev server (npm run dev)"),
+			slog.String("status", "api_only"),
+		)
+	}
 
 	a, err := app.New(db, app.Options{
 		AppEnv:            cfg.AppEnv,
 		ClientDir:         clientDir,
 		SPADir:            spaDir,
 		ServeSPA:          serveSPA,
+		APIOnly:           apiOnly,
 		DatabaseDSN:       cfg.DatabaseURL,
 		WorkerConcurrency: cfg.WorkerConcurrency,
 		DisableWorker:     !cfg.EmbeddedWorker,
 		RequireApproval:   cfg.RequireApproval,
+		DisableLegacySync: !cfg.LegacySync,
+		EnableMetrics:     cfg.MetricsEnabled,
 	})
 	if err != nil {
 		slog.Error("inisialisasi aplikasi gagal", "error", err)
@@ -102,9 +120,13 @@ func main() {
 			slog.String("addr", srv.Addr),
 			slog.String("env", cfg.AppEnv),
 			slog.Bool("spa_mode", serveSPA),
+			slog.Bool("api_only", apiOnly),
 			slog.String("spa_dir", spaDir),
 			slog.Bool("embedded_worker", cfg.EmbeddedWorker),
 			slog.Int("worker_concurrency", cfg.WorkerConcurrency),
+			slog.Bool("require_approval", cfg.RequireApproval),
+			slog.Bool("legacy_sync_migration", cfg.LegacySync),
+			slog.Bool("metrics_enabled", cfg.MetricsEnabled),
 			slog.String("status", "running"),
 		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

@@ -76,32 +76,39 @@ func main() {
 	_, err = st.SetGroupLeader(ctx, groups["Backend Dev"], ids["bob"])
 	must(err)
 
-	if target := os.Getenv("SEED_TARGET_URL"); target != "" {
-		c, err := connmgr.ConfigFromURL(target)
-		must(err)
-		if c.SSLMode == "" {
-			c.SSLMode = "disable"
-		}
-		var connID int64
-		conns, err := st.ListConnections(ctx)
-		must(err)
-		for _, x := range conns {
-			if x.Name == "Sample DB" {
-				connID = x.ID
-			}
-		}
-		if connID == 0 {
-			created, err := st.CreateConnection(ctx, store.ConnectionInput{
-				Name: "Sample DB", Description: "Database contoh dari SEED_TARGET_URL",
-				Host: c.Host, Port: c.Port, DatabaseName: c.Database, Username: c.Username, SSLMode: c.SSLMode,
-			}, c.Password)
-			must(err)
-			connID = created.ID
-		}
-		must(st.SetGrant(ctx, groups["Analyst"], connID, authz.LevelViewOnly))
-		must(st.SetGrant(ctx, groups["Backend Dev"], connID, authz.LevelViewEdit))
-	}
+	seedTarget(ctx, st, groups, os.Getenv("SEED_TARGET_URL"), "Sample DB", "Database contoh dari SEED_TARGET_URL")
+	seedTarget(ctx, st, groups, os.Getenv("SEED_TARGET_URL_2"), "Sample DB 2", "Database contoh kedua dari SEED_TARGET_URL_2")
 	log.Printf("seed selesai: user alice/bob/carol (password %s), group %v", devPassword, groups)
+}
+
+func seedTarget(ctx context.Context, st *store.Store, groups map[string]int64, target, name, desc string) {
+	if target == "" {
+		return
+	}
+	c, err := connmgr.ConfigFromURL(target)
+	must(err)
+	if c.SSLMode == "" {
+		c.SSLMode = "disable"
+	}
+	var connID int64
+	conns, err := st.ListConnections(ctx)
+	must(err)
+	for _, x := range conns {
+		if x.Name == name {
+			connID = x.ID
+		}
+	}
+	if connID == 0 {
+		created, err := st.CreateConnection(ctx, store.ConnectionInput{
+			Name: name, Description: desc,
+			Host: c.Host, Port: c.Port, DatabaseName: c.Database, Username: c.Username, SSLMode: c.SSLMode,
+		}, c.Password)
+		must(err)
+		connID = created.ID
+	}
+	must(st.SetGrant(ctx, groups["Analyst"], connID, authz.LevelViewOnly))
+	must(st.SetGrant(ctx, groups["Backend Dev"], connID, authz.LevelViewEdit))
+	log.Printf("koneksi %q siap (id %d)", name, connID)
 }
 
 func must(err error) {

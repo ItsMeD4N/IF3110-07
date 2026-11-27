@@ -38,7 +38,6 @@ export function ApprovalsPage() {
   const [definitionPreview, setDefinitionPreview] = useState<MigrationDefinition | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
-  // Leader decision inputs
   const [comment, setComment] = useState('');
   const [decisionError, setDecisionError] = useState('');
   const [submittingDecision, setSubmittingDecision] = useState<'approve' | 'reject' | null>(null);
@@ -76,7 +75,6 @@ export function ApprovalsPage() {
     [requests, selectedReqId],
   );
 
-  // Fetch full migration SQL preview whenever selected approval changes
   useEffect(() => {
     if (!selectedReq) {
       setDefinitionPreview(null);
@@ -207,7 +205,6 @@ export function ApprovalsPage() {
         />
       ) : (
         <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
-          {/* Left: Pending Requests Queue */}
           <section aria-label="Daftar permintaan review menunggu" className="card-surface p-3.5">
             <h2 className="mb-2.5 px-1 text-sm font-semibold text-ink tabular-nums">
               Menunggu Keputusan ({requests.length})
@@ -255,7 +252,6 @@ export function ApprovalsPage() {
             </ul>
           </section>
 
-          {/* Right: Full SQL Review & Decision Workspace */}
           {selectedReq && (
             <section className="card-surface space-y-5 p-5" aria-label="Detail tinjauan migration">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
@@ -289,7 +285,6 @@ export function ApprovalsPage() {
                 </div>
               </div>
 
-              {/* SQL & Batch Preview */}
               <div className="space-y-3">
                 <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
                   <Code2 className="h-4 w-4 text-accent" aria-hidden="true" />
@@ -348,13 +343,11 @@ export function ApprovalsPage() {
                 )}
               </div>
 
-              {/* Group Leader Matrix */}
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-ink">Status Persetujuan Tiap Group</h3>
                 <ApprovalMatrixList request={selectedReq} />
               </div>
 
-              {/* Decision Controls */}
               {selectedReq.can_current_user_decide && (
                 <div className="space-y-3 border-t border-border pt-4">
                   <h3 className="text-sm font-semibold text-ink">Keputusan Kamu sebagai Group Leader</h3>

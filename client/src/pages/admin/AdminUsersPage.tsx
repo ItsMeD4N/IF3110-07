@@ -37,7 +37,6 @@ export function AdminUsersPage() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
 
-  // Create user form state
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -48,7 +47,6 @@ export function AdminUsersPage() {
   const createUsernameRef = useRef<HTMLInputElement>(null);
   const createPasswordRef = useRef<HTMLInputElement>(null);
 
-  // Edit user dialog state
   const [editingUser, setEditingUser] = useState<AuthUser | null>(null);
   const [editUsername, setEditUsername] = useState('');
   const [editIsAdmin, setEditIsAdmin] = useState(false);
@@ -57,7 +55,6 @@ export function AdminUsersPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const editUsernameRef = useRef<HTMLInputElement>(null);
 
-  // Reset password dialog state
   const [resetTarget, setResetTarget] = useState<AuthUser | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -65,7 +62,6 @@ export function AdminUsersPage() {
   const [resetting, setResetting] = useState(false);
   const resetInputRef = useRef<HTMLInputElement>(null);
 
-  // Confirm dialogs (revoke sessions / delete user)
   const [revokeTarget, setRevokeTarget] = useState<AuthUser | null>(null);
   const [revoking, setRevoking] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AuthUser | null>(null);
@@ -537,7 +533,6 @@ export function AdminUsersPage() {
         </TableShell>
       )}
 
-      {/* Edit User Modal */}
       <FormDialog
         open={Boolean(editingUser)}
         title={`Edit Pengguna: ${editingUser?.username ?? ''}`}
@@ -619,7 +614,6 @@ export function AdminUsersPage() {
         </form>
       </FormDialog>
 
-      {/* Reset Password Modal */}
       <FormDialog
         open={Boolean(resetTarget)}
         title={`Reset Password: ${resetTarget?.username ?? ''}`}

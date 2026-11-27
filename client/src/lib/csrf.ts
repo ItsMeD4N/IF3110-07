@@ -1,9 +1,5 @@
 const CSRF_COOKIE_NAME = 'csrf_token';
 
-/**
- * Reads the current CSRF cookie directly from document.cookie.
- * Always reads fresh because the backend rotates csrf_token upon login.
- */
 export function readCSRFCookie(): string {
   if (typeof document === 'undefined') return '';
   const cookies = document.cookie.split(';');
@@ -18,10 +14,6 @@ export function readCSRFCookie(): string {
 
 let inflightFetch: Promise<string> | null = null;
 
-/**
- * Ensures a valid CSRF token exists before sending mutating requests.
- * Calls GET /api/csrf-token if the cookie is not yet present.
- */
 export async function ensureCSRFToken(): Promise<string> {
   const existing = readCSRFCookie();
   if (existing) return existing;

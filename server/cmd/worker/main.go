@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +15,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/dblock"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/metrics"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/migration"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/queue"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/secretbox"
@@ -25,7 +28,13 @@ func main() {
 	cfg := config.LoadConfig()
 	ctx := context.Background()
 
-	telemetry.InitLogger(os.Stdout, telemetry.ParseLogLevel(cfg.LogLevel))
+	logOut, closeLog, err := telemetry.LogOutput(os.Stdout, cfg.LogFile)
+	if err != nil {
+		slog.Error("worker: inisialisasi log gagal", "error", err)
+		os.Exit(1)
+	}
+	defer closeLog()
+	telemetry.InitLogger(logOut, telemetry.ParseLogLevel(cfg.LogLevel))
 
 	_, shutdownTrace, err := telemetry.InitTracing(ctx, telemetry.TracingConfig{
 		ServiceName:  cfg.OTelServiceName + "-worker",
@@ -96,6 +105,32 @@ func main() {
 		Concurrency: cfg.WorkerConcurrency,
 	})
 
+	var metricsSrv *http.Server
+	if cfg.MetricsEnabled && cfg.WorkerMetricsAddr != "" {
+		metrics.RegisterDBPool("platform", db.Stats)
+		metrics.RegisterDBPool("target", conns.Stats)
+		metrics.RegisterJobStatusGauge(db)
+		mux := http.NewServeMux()
+		mux.Handle("GET /metrics", metrics.Handler())
+		metricsSrv = &http.Server{
+			Addr:              cfg.WorkerMetricsAddr,
+			Handler:           mux,
+			ReadHeaderTimeout: 5 * time.Second,
+		}
+		go func() {
+			telemetry.LogEvent(ctx, slog.LevelInfo, "worker.metrics_started",
+				slog.String("addr", cfg.WorkerMetricsAddr),
+				slog.String("status", "running"),
+			)
+			if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				telemetry.LogEvent(ctx, slog.LevelError, "worker.metrics_failed",
+					slog.String("error", err.Error()),
+					slog.String("status", "error"),
+				)
+			}
+		}()
+	}
+
 	pool.Start(ctx)
 
 	stop := make(chan os.Signal, 1)
@@ -106,4 +141,7 @@ func main() {
 	shCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	_ = pool.Stop(shCtx)
+	if metricsSrv != nil {
+		_ = metricsSrv.Shutdown(shCtx)
+	}
 }

@@ -33,14 +33,12 @@ func TestApp_ServeSPAMode(t *testing.T) {
 	}
 	t.Cleanup(a.Close)
 
-	// 1. API health tetap jalan
 	rec := httptest.NewRecorder()
 	a.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"healthy"`) {
 		t.Fatalf("GET /api/health = %d %s", rec.Code, rec.Body.String())
 	}
 
-	// 2. Deep-link SPA route mengembalikan index.html + cookie CSRF
 	for _, route := range []string{"/", "/login", "/databases/1/migrations/history", "/approvals", "/admin/users"} {
 		rec := httptest.NewRecorder()
 		a.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
@@ -52,7 +50,6 @@ func TestApp_ServeSPAMode(t *testing.T) {
 		}
 	}
 
-	// 3. Unknown /api/* route tetap mengembalikan 404 JSON, bukan HTML
 	rec404 := httptest.NewRecorder()
 	a.Handler.ServeHTTP(rec404, httptest.NewRequest(http.MethodGet, "/api/tidak-ada", nil))
 	if rec404.Code != http.StatusNotFound {

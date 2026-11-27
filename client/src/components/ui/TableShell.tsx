@@ -7,9 +7,6 @@ interface TableShellProps {
   className?: string;
 }
 
-/**
- * Keyboard-scrollable accessible data table wrapper (tabindex=0, role=region, sticky thead).
- */
 export function TableShell({ ariaLabel, ariaLabelledBy, children, className = '' }: TableShellProps) {
   return (
     <div

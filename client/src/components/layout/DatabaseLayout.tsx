@@ -155,7 +155,6 @@ export function DatabaseLayout() {
         }
       />
 
-      {/* Semantic page sub-navigation (uses NavLink aria-current="page", NOT WAI-ARIA tablist) */}
       <nav aria-label="Navigasi workspace database" className="tab-strip mb-6">
         <NavLink to={basePath} end className="tab-item">
           <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden="true" />

@@ -12,8 +12,6 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 )
 
-// FindSPADir locates the compiled SPA dist directory containing index.html.
-// Checks SPA_DIST_DIR first, then <clientDir>/dist. Returns "" if not built yet.
 func FindSPADir(clientDir string) string {
 	cands := []string{
 		strings.TrimSpace(os.Getenv("SPA_DIST_DIR")),
@@ -34,8 +32,6 @@ func FindSPADir(clientDir string) string {
 	return ""
 }
 
-// SPAHandler serves built static SPA files from distDir and falls back to index.html
-// for client-side routes. Unknown /api/* paths always receive JSON 404.
 func SPAHandler(distDir string) http.Handler {
 	rootFS := os.DirFS(distDir)
 	fileServer := http.FileServer(http.FS(rootFS))
@@ -61,7 +57,6 @@ func SPAHandler(distDir string) http.Handler {
 				fileServer.ServeHTTP(w, r)
 				return
 			}
-			// Missing static assets under /assets/ must return 404, not HTML
 			if strings.HasPrefix(cleanPath, "/assets/") {
 				http.NotFound(w, r)
 				return

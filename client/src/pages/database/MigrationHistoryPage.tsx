@@ -54,13 +54,11 @@ export function MigrationHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
 
-  // Selected execution full detail (includes checkpoints[])
   const [selectedExecId, setSelectedExecId] = useState<number | null>(initialExecId);
   const [detail, setDetail] = useState<MigrationExecution | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState('');
 
-  // Recovery action state
   const [recoveryTarget, setRecoveryTarget] = useState<{
     kind: RecoveryKind;
     exec: MigrationExecution;
@@ -69,7 +67,6 @@ export function MigrationHistoryPage() {
   const [actionError, setActionError] = useState<string>('');
   const [trackedJob, setTrackedJob] = useState<{ jobId: string; initialJob: MigrationJob } | null>(null);
 
-  // Batch recovery review submission (M2 approval contract)
   const [reviewModal, setReviewModal] = useState<{
     action: Extract<MigrationAction, 'batch_resume' | 'batch_revert'>;
     exec: MigrationExecution;
@@ -163,7 +160,6 @@ export function MigrationHistoryPage() {
   const detailExecId = detail?.execution_id ?? null;
   const detailIsRunning = detail?.status === 'running' || detail?.status === 'pending';
 
-  // Fallback live polling if user opens/refreshes History while an execution is already running
   useEffect(() => {
     if (!detailIsRunning || !detailExecId || trackedJob) return;
     let cancelled = false;
@@ -403,7 +399,6 @@ export function MigrationHistoryPage() {
 
   return (
     <div className="space-y-5">
-      {/* Top Controls: Hide rollback checkbox + refresh */}
       <div className="card-surface flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2.5">
@@ -474,7 +469,6 @@ export function MigrationHistoryPage() {
         />
       ) : (
         <div className="space-y-5">
-          {/* Execution History Table */}
           <TableShell ariaLabelledBy={tableCaptionId}>
             <table>
               <caption id={tableCaptionId} className="sr-only-live">
@@ -561,7 +555,6 @@ export function MigrationHistoryPage() {
             </table>
           </TableShell>
 
-          {/* Selected Execution Inspector + Batch Checkpoints + Recovery Controls */}
           <section
             ref={detailSectionRef}
             tabIndex={-1}
@@ -596,7 +589,6 @@ export function MigrationHistoryPage() {
                     </p>
                   </div>
 
-                  {/* Batch Recovery & Reconciliation Buttons */}
                   {(canResume || canRevert || canReconcile) && (
                     <div className="flex flex-wrap items-center gap-2">
                       {canResume && (
@@ -683,7 +675,6 @@ export function MigrationHistoryPage() {
                   </Alert>
                 )}
 
-                {/* Metadata Grid */}
                 <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
                     <dt className="text-muted">Mulai / Selesai</dt>
@@ -748,7 +739,6 @@ export function MigrationHistoryPage() {
                   </Alert>
                 )}
 
-                {/* Batch Summary & Checkpoints */}
                 {(detail.execution_mode === 'batch' || (detail.checkpoints && detail.checkpoints.length > 0)) && (() => {
                   const isRevertAction = detail.action === 'batch_revert';
                   const batchDone = isRevertAction ? detail.reverted_batches : detail.completed_batches;
@@ -879,7 +869,6 @@ export function MigrationHistoryPage() {
                   );
                 })()}
 
-                {/* Executed SQL Copy */}
                 <div className="space-y-1.5 border-t border-border pt-4">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
