@@ -9,7 +9,7 @@ export function SkeletonLine({ className = 'h-4 w-full' }: { className?: string 
 
 export function CardGridSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-label="Memuat data">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-label="Memuat data">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="card-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">

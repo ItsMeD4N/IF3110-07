@@ -42,8 +42,8 @@ export function WorkflowStepper({ status }: { status: WorkflowStatus }) {
   const { index, terminalState } = resolveStepIndex(status);
 
   return (
-    <nav aria-label="Alur status workflow migration" className="overflow-x-auto pb-1">
-      <ol className="flex min-w-max items-center gap-1.5 text-xs">
+    <nav aria-label="Alur status workflow migration" className="w-full max-w-full">
+      <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-xs">
         {STEPS.map((step, i) => {
           const isCompleted = i < index || (i === 5 && index === 5 && terminalState === 'ok');
           const isCurrent = i === index;

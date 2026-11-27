@@ -333,7 +333,7 @@ export function AdminConnectionsPage() {
           )}
 
           <form aria-labelledby={formHeadingId} onSubmit={handleSave} className="mt-4 space-y-4" noValidate>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <label htmlFor="conn-name" className="block text-sm font-medium text-ink">
                   Nama Koneksi <span aria-hidden="true" className="text-danger">*</span>
@@ -369,7 +369,7 @@ export function AdminConnectionsPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-12">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
               <div className="space-y-1 sm:col-span-6">
                 <label htmlFor="conn-host" className="block text-sm font-medium text-ink">
                   Host <span aria-hidden="true" className="text-danger">*</span>
@@ -429,7 +429,7 @@ export function AdminConnectionsPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1">
                 <label htmlFor="conn-dbname" className="block text-sm font-medium text-ink">
                   Nama Database <span aria-hidden="true" className="text-danger">*</span>

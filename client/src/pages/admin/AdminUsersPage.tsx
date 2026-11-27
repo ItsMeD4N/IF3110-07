@@ -286,7 +286,7 @@ export function AdminUsersPage() {
           <form
             aria-labelledby={createHeadingId}
             onSubmit={handleCreateUser}
-            className="mt-4 grid gap-4 sm:grid-cols-2"
+            className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2"
             noValidate
           >
             <div className="space-y-1">
@@ -569,7 +569,7 @@ export function AdminUsersPage() {
             />
           </div>
 
-          <fieldset className="space-y-2.5 rounded-lg border border-border bg-surface-subtle/50 p-3.5">
+          <fieldset className="min-w-0 space-y-2.5 rounded-lg border border-border bg-surface-subtle/50 p-3.5">
             <legend className="px-1 text-xs font-semibold text-muted">
               Peran &amp; Status Akun
             </legend>
@@ -603,7 +603,7 @@ export function AdminUsersPage() {
             </div>
           </fieldset>
 
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
             <Button variant="secondary" disabled={savingEdit} onClick={() => setEditingUser(null)}>
               Batal
             </Button>
@@ -667,7 +667,7 @@ export function AdminUsersPage() {
               Minimal 8 karakter. Bagikan password baru secara aman kepada pengguna.
             </p>
           </div>
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
             <Button variant="secondary" disabled={resetting} onClick={() => setResetTarget(null)}>
               Batal
             </Button>

@@ -199,7 +199,7 @@ export function DatabaseViewerPage() {
 
   if (loadingSchema && !schemaData) {
     return (
-      <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]" role="status" aria-label="Memuat schema database">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]" role="status" aria-label="Memuat schema database">
         <div className="card-surface space-y-3 p-4">
           <SkeletonLine className="h-9 w-full" />
           <SkeletonLine className="h-5 w-3/4" />
@@ -247,10 +247,10 @@ export function DatabaseViewerPage() {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
-      <section className="card-surface space-y-3 p-4 lg:hidden" aria-label="Pemilih schema dan tabel">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+      <section className="card-surface min-w-0 space-y-3 p-4 lg:hidden" aria-label="Pemilih schema dan tabel">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="min-w-0 space-y-1">
             <label htmlFor="mobile-schema-select" className="block text-xs font-semibold text-muted">
               Schema
             </label>
@@ -259,7 +259,7 @@ export function DatabaseViewerPage() {
               name="schema"
               value={selectedSchema}
               onChange={(e) => handleSchemaChange(e.target.value)}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-ink"
+              className="w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-ink"
             >
               {schemaData.schemas.map((sc) => (
                 <option key={sc} value={sc}>
@@ -268,7 +268,7 @@ export function DatabaseViewerPage() {
               ))}
             </select>
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <label htmlFor="mobile-table-select" className="block text-xs font-semibold text-muted">
               Tabel / View ({schemaData.tables.length})
             </label>
@@ -278,7 +278,7 @@ export function DatabaseViewerPage() {
               value={selectedTableName}
               disabled={schemaData.tables.length === 0}
               onChange={(e) => handleSelectTable(e.target.value)}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-ink disabled:opacity-60"
+              className="w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-ink disabled:opacity-60"
             >
               {schemaData.tables.length === 0 ? (
                 <option value="">Tidak ada tabel</option>

@@ -66,6 +66,7 @@
     line-height: 1.5;
     background-color: var(--bg);
     color: var(--ink);
+    overflow-x: clip;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -75,6 +76,10 @@
     background-color: var(--bg);
     color: var(--ink);
     overflow-x: clip;
+  }
+
+  fieldset {
+    min-inline-size: 0;
   }
 
   ::selection {
@@ -128,10 +133,15 @@ dialog::backdrop {
 }
 
 .ConfirmDialog {
+  position: fixed;
+  inset: 0;
   margin: auto;
   padding: 0;
-  width: min(28rem, calc(100dvw - 2rem));
-  max-height: calc(100dvh - 2rem);
+  inline-size: min(28rem, calc(100% - 1.5rem));
+  max-inline-size: calc(100dvw - 1.5rem);
+  max-block-size: calc(100dvh - 2rem);
+  overflow-x: clip;
+  overflow-y: auto;
   border: 1px solid var(--border-strong);
   border-radius: 4px;
   background-color: var(--surface);

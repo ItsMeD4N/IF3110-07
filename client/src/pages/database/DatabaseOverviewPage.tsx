@@ -97,8 +97,8 @@ export function DatabaseOverviewPage() {
           </Alert>
         )}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="card-surface p-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="card-surface min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-base font-semibold text-ink">Status Koneksi &amp; Lock</h2>
             <Button
@@ -113,46 +113,46 @@ export function DatabaseOverviewPage() {
           </div>
 
           <dl className="mt-4 divide-y divide-border text-sm">
-            <div className="flex items-center justify-between gap-4 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5">
               <dt className="text-muted">Nama Database</dt>
-              <dd className="font-mono font-medium text-ink">{database.database_name}</dd>
+              <dd className="min-w-0 break-all font-mono font-medium text-ink">{database.database_name}</dd>
             </div>
 
-            <div className="flex items-center justify-between gap-4 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5">
               <dt className="text-muted">Konektivitas Target</dt>
               <dd>
                 {checkingStatus ? (
                   <Badge tone="neutral">Memeriksa…</Badge>
                 ) : connOk ? (
                   <span className="inline-flex items-center gap-1.5 font-medium text-ok tabular-nums">
-                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span>Terhubung{connLatencyMs !== null ? ` (${connLatencyMs} ms)` : ''}</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 font-medium text-danger">
-                    <XCircle className="h-4 w-4" aria-hidden="true" />
+                    <XCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span>Tidak dapat dijangkau</span>
                   </span>
                 )}
               </dd>
             </div>
 
-            <div className="flex items-center justify-between gap-4 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5">
               <dt className="text-muted">Status Lock Migration</dt>
-              <dd>
+              <dd className="min-w-0">
                 {!lockInfo || !lockInfo.locked ? (
                   <span className="inline-flex items-center gap-1.5 font-medium text-ok">
-                    <LockOpen className="h-4 w-4" aria-hidden="true" />
+                    <LockOpen className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span>Bebas (siap menjalankan migration)</span>
                   </span>
                 ) : lockInfo.state === 'held' ? (
                   <span className="inline-flex items-center gap-1.5 font-medium text-warn">
-                    <Lock className="h-4 w-4" aria-hidden="true" />
-                    <span>Dikunci oleh worker {lockInfo.owner_id}</span>
+                    <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="break-all">Dikunci oleh worker {lockInfo.owner_id}</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 font-medium text-danger">
-                    <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+                    <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span>{lockInfo.state}</span>
                   </span>
                 )}
@@ -162,13 +162,13 @@ export function DatabaseOverviewPage() {
             {lockInfo?.locked && (
               <>
                 {lockInfo.job_id && (
-                  <div className="flex items-center justify-between gap-4 py-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5">
                     <dt className="text-muted">Job ID Aktif</dt>
-                    <dd className="truncate font-mono text-xs text-ink">{lockInfo.job_id}</dd>
+                    <dd className="min-w-0 break-all font-mono text-xs text-ink">{lockInfo.job_id}</dd>
                   </div>
                 )}
                 {lockInfo.expires_at && (
-                  <div className="flex items-center justify-between gap-4 py-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5">
                     <dt className="text-muted">Lease Berakhir</dt>
                     <dd className="text-xs text-ink tabular-nums">
                       {formatDateTime(lockInfo.expires_at)}
@@ -186,8 +186,8 @@ export function DatabaseOverviewPage() {
           )}
         </section>
 
-        <section className="card-surface p-5">
-          <div className="flex items-center justify-between gap-2">
+        <section className="card-surface min-w-0 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="inline-flex items-center gap-2 text-base font-semibold text-ink">
               <ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />
               <span>Hak Akses Efektif Kamu</span>
@@ -212,9 +212,9 @@ export function DatabaseOverviewPage() {
         </section>
       </div>
 
-      <section className="card-surface p-5">
+      <section className="card-surface min-w-0 p-4 sm:p-5">
         <h2 className="text-base font-semibold text-ink">Mulai Bekerja pada Database Ini</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             to={`${basePath}/viewer`}
             className="flex flex-col justify-between gap-2 rounded-lg border border-border bg-surface-subtle/40 p-4 text-ink no-underline transition-colors hover:border-border-strong hover:bg-surface-subtle"

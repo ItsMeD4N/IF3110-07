@@ -274,8 +274,8 @@ export function AdminGroupDetailPage() {
     return (
       <div className="space-y-4" role="status" aria-label="Memuat detail group">
         <SkeletonLine className="h-7 w-56" />
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div className="card-surface space-y-3 p-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="card-surface min-w-0 space-y-3 p-5">
             <SkeletonLine className="h-5 w-40" />
             <SkeletonLine className="h-9 w-full" />
             <SkeletonLine className="h-9 w-full" />
@@ -328,8 +328,8 @@ export function AdminGroupDetailPage() {
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="card-surface p-5" aria-labelledby={infoFormId}>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="card-surface min-w-0 p-4 sm:p-5" aria-labelledby={infoFormId}>
           <h2 id={infoFormId} className="text-base font-semibold text-ink">
             Informasi Group
           </h2>
@@ -381,7 +381,7 @@ export function AdminGroupDetailPage() {
           </form>
         </section>
 
-        <section className="card-surface p-5" aria-labelledby={leaderFormId}>
+        <section className="card-surface min-w-0 p-4 sm:p-5" aria-labelledby={leaderFormId}>
           <div className="flex items-center justify-between gap-2">
             <h2 id={leaderFormId} className="inline-flex items-center gap-2 text-base font-semibold text-ink">
               <Crown className="h-4 w-4 text-accent" aria-hidden="true" />
@@ -443,7 +443,7 @@ export function AdminGroupDetailPage() {
           </form>
         </section>
 
-        <section className="card-surface p-5" aria-labelledby={memberFormId}>
+        <section className="card-surface min-w-0 p-4 sm:p-5" aria-labelledby={memberFormId}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 id={memberFormId} className="text-base font-semibold text-ink">
               Anggota Group
@@ -463,7 +463,7 @@ export function AdminGroupDetailPage() {
               value={selectedUserId}
               disabled={candidateUsers.length === 0}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="min-w-44 flex-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-ink disabled:opacity-60"
+              className="w-full min-w-0 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-ink disabled:opacity-60 sm:w-auto sm:flex-1"
             >
               <option value="">
                 {candidateUsers.length === 0
@@ -525,7 +525,7 @@ export function AdminGroupDetailPage() {
           )}
         </section>
 
-        <section className="card-surface p-5" aria-labelledby={grantFormId}>
+        <section className="card-surface min-w-0 p-4 sm:p-5" aria-labelledby={grantFormId}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 id={grantFormId} className="inline-flex items-center gap-2 text-base font-semibold text-ink">
               <Database className="h-4 w-4 text-accent" aria-hidden="true" />
@@ -546,7 +546,7 @@ export function AdminGroupDetailPage() {
               value={selectedConnId}
               disabled={candidateConnections.length === 0}
               onChange={(e) => setSelectedConnId(e.target.value)}
-              className="min-w-40 flex-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-ink disabled:opacity-60"
+              className="w-full min-w-0 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-ink disabled:opacity-60 sm:w-auto sm:flex-1"
             >
               <option value="">
                 {allConnections.length === 0

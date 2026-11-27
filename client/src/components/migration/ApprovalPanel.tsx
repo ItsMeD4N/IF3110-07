@@ -170,7 +170,7 @@ export function ApprovalPanel({
   return (
     <section
       aria-labelledby={sectionHeadingId}
-      className="mt-5 space-y-4 border-t border-border pt-5"
+      className="mt-5 min-w-0 space-y-4 border-t border-border pt-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id={sectionHeadingId} className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
@@ -287,7 +287,7 @@ export function ApprovalPanel({
               name="action"
               value={submitAction}
               onChange={(e) => setSubmitAction(e.target.value as MigrationAction)}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-ink"
+              className="w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-ink"
             >
               <option value={definition.execution_mode === 'batch' ? 'batch_up' : 'up'}>
                 {definition.execution_mode === 'batch' ? 'batch_up (Eksekusi Batch)' : 'up (Eksekusi Normal)'}
@@ -324,7 +324,7 @@ export function ApprovalPanel({
             />
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" disabled={submitting} onClick={() => setSubmitOpen(false)}>
               Batal
             </Button>
@@ -386,7 +386,7 @@ export function ApprovalPanel({
               className="w-full rounded-md border border-border bg-surface p-2.5 text-sm text-ink"
             />
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" disabled={deciding} onClick={() => setDecisionTarget(null)}>
               Batal
             </Button>

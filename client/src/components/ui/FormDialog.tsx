@@ -83,13 +83,13 @@ export function FormDialog({
       className="ConfirmDialog"
       {...({ closedby: busy ? 'none' : 'any' } as Record<string, string>)}
     >
-      <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3.5 sm:px-5 sm:py-4">
         <div className="min-w-0">
-          <h1 id={titleId} className="text-base font-semibold text-ink">
+          <h1 id={titleId} className="break-words text-base font-semibold text-ink">
             {title}
           </h1>
           {description && (
-            <p id={descId} className="mt-1 text-xs leading-relaxed text-muted">
+            <p id={descId} className="mt-1 break-words text-xs leading-relaxed text-muted">
               {description}
             </p>
           )}
@@ -104,7 +104,7 @@ export function FormDialog({
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-      <div className="p-5">{children}</div>
+      <div className="min-w-0 p-4 sm:p-5">{children}</div>
     </dialog>
   );
 }

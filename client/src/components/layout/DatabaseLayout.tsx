@@ -123,7 +123,7 @@ export function DatabaseLayout() {
   const basePath = `/databases/${database.id}`;
 
   return (
-    <div>
+    <div className="min-w-0">
       <PageHeader
         title={database.name}
         description={database.description || `Database target PostgreSQL: ${database.database_name}`}

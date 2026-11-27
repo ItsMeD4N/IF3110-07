@@ -204,12 +204,12 @@ export function ApprovalsPage() {
           }
         />
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
-          <section aria-label="Daftar permintaan review menunggu" className="card-surface p-3.5">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
+          <section aria-label="Daftar permintaan review menunggu" className="card-surface min-w-0 p-3.5">
             <h2 className="mb-2.5 px-1 text-sm font-semibold text-ink tabular-nums">
               Menunggu Keputusan ({requests.length})
             </h2>
-            <ul className="space-y-1.5">
+            <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-0.5 xl:max-h-[calc(100dvh-14rem)]">
               {requests.map((req) => {
                 const selected = req.id === selectedReqId;
                 return (
@@ -253,9 +253,9 @@ export function ApprovalsPage() {
           </section>
 
           {selectedReq && (
-            <section className="card-surface space-y-5 p-5" aria-label="Detail tinjauan migration">
+            <section className="card-surface min-w-0 space-y-5 p-4 sm:p-5" aria-label="Detail tinjauan migration">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
-                <div>
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-base font-bold text-ink">
                       Request #{selectedReq.id} | v{selectedReq.migration_version}{' '}

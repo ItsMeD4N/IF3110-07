@@ -558,7 +558,7 @@ export function MigrationHistoryPage() {
           <section
             ref={detailSectionRef}
             tabIndex={-1}
-            className="card-surface p-5 focus:outline-none"
+            className="card-surface min-w-0 p-4 sm:p-5 focus:outline-none"
             aria-label="Detail eksekusi migration"
           >
             {loadingDetail ? (
@@ -574,7 +574,7 @@ export function MigrationHistoryPage() {
             ) : (
               <div className="space-y-5">
                 <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-base font-bold text-ink">
                         Execution <span className="font-mono">#E{detail.execution_id}</span> | v
@@ -675,21 +675,21 @@ export function MigrationHistoryPage() {
                   </Alert>
                 )}
 
-                <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
+                <dl className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="min-w-0 rounded-md border border-border bg-surface-subtle/40 p-2.5">
                     <dt className="text-muted">Mulai / Selesai</dt>
                     <dd className="mt-0.5 font-medium text-ink tabular-nums">
                       {formatDateTime(detail.started_at || detail.created_at)} →{' '}
                       {formatDateTime(detail.finished_at)}
                     </dd>
                   </div>
-                  <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
+                  <div className="min-w-0 rounded-md border border-border bg-surface-subtle/40 p-2.5">
                     <dt className="text-muted">Job ID</dt>
                     <dd className="mt-0.5 truncate font-mono text-ink" title={detail.job_id || ''}>
                       {detail.job_id || '-'}
                     </dd>
                   </div>
-                  <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
+                  <div className="min-w-0 rounded-md border border-border bg-surface-subtle/40 p-2.5">
                     <dt className="text-muted">Trace / Correlation ID</dt>
                     <dd
                       className="mt-0.5 truncate font-mono text-ink"
@@ -698,7 +698,7 @@ export function MigrationHistoryPage() {
                       {detail.trace_id || detail.correlation_id || '-'}
                     </dd>
                   </div>
-                  <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
+                  <div className="min-w-0 rounded-md border border-border bg-surface-subtle/40 p-2.5">
                     <dt className="text-muted">Relasi Execution</dt>
                     <dd className="mt-0.5 font-mono text-ink">
                       {detail.reverted_execution_id
@@ -932,7 +932,7 @@ export function MigrationHistoryPage() {
               className="w-full rounded-md border border-border bg-surface p-2.5 text-sm text-ink"
             />
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" disabled={submittingReview} onClick={() => setReviewModal(null)}>
               Batal
             </Button>

@@ -91,11 +91,11 @@ export function DatabasesPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {databases.map((db) => {
             const canEdit = db.access_level === 'view_edit';
             return (
-              <article key={db.id} className="card-surface flex flex-col p-5">
+              <article key={db.id} className="card-surface flex min-w-0 flex-col p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="truncate text-base font-semibold text-ink">{db.name}</h2>

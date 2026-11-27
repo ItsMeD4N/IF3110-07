@@ -197,7 +197,7 @@ export function DatabaseJobsPage() {
         </div>
 
         {lockInfo?.locked && (
-          <dl className="mt-4 grid gap-3 border-t border-border pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-border pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <dt className="text-muted">Worker Owner</dt>
               <dd className="mt-0.5 font-mono font-medium text-ink">{lockInfo.owner_id || '-'}</dd>
@@ -302,8 +302,8 @@ export function DatabaseJobsPage() {
           }
         />
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] xl:items-start">
-          <TableShell ariaLabelledBy={jobsCaptionId}>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] xl:items-start">
+          <TableShell ariaLabelledBy={jobsCaptionId} className="min-w-0">
             <table>
               <caption id={jobsCaptionId} className="sr-only-live">
                 Daftar antrean dan riwayat job migration
@@ -364,7 +364,7 @@ export function DatabaseJobsPage() {
             </table>
           </TableShell>
 
-          <section className="card-surface p-5" aria-label="Detail job terpilih">
+          <section className="card-surface min-w-0 p-4 sm:p-5" aria-label="Detail job terpilih">
             {loadingDetail && !selectedDetail ? (
               <div className="space-y-3" role="status" aria-label="Memuat detail job">
                 <SkeletonLine className="h-5 w-48" />
@@ -398,36 +398,36 @@ export function DatabaseJobsPage() {
                   )}
                 </div>
 
-                <dl className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
+                <dl className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+                  <div className="min-w-0">
                     <dt className="text-muted">Pelaksana</dt>
-                    <dd className="mt-0.5 font-mono text-ink">{selectedDetail.job.actor}</dd>
+                    <dd className="mt-0.5 truncate font-mono text-ink">{selectedDetail.job.actor}</dd>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-muted">Attempt</dt>
                     <dd className="mt-0.5 font-mono text-ink tabular-nums">
                       {selectedDetail.job.attempt} / {selectedDetail.job.max_attempts}
                     </dd>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-muted">Worker</dt>
                     <dd className="mt-0.5 truncate font-mono text-ink">
                       {selectedDetail.job.locked_by || '-'}
                     </dd>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-muted">Jadwal / Mulai</dt>
                     <dd className="mt-0.5 text-ink tabular-nums">
                       {formatDateTime(selectedDetail.job.started_at || selectedDetail.job.run_at)}
                     </dd>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-muted">Selesai</dt>
                     <dd className="mt-0.5 text-ink tabular-nums">
                       {formatDateTime(selectedDetail.job.completed_at)}
                     </dd>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-muted">Idempotency Key</dt>
                     <dd
                       className="mt-0.5 truncate font-mono text-ink"

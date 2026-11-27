@@ -133,7 +133,7 @@ export function AdminGroupsPage() {
           )}
 
           <form aria-labelledby={createHeadingId} onSubmit={handleCreateGroup} className="mt-4 space-y-4" noValidate>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <label htmlFor="group-name" className="block text-sm font-medium text-ink">
                   Nama Group <span aria-hidden="true" className="text-danger">*</span>

@@ -92,11 +92,11 @@ export function ConfirmDialog({
       className="ConfirmDialog"
       {...({ closedby: loading ? 'none' : 'any' } as Record<string, string>)}
     >
-      <div className="p-5">
-        <h1 id={titleId} className="text-base font-semibold text-ink">
+      <div className="min-w-0 p-4 sm:p-5">
+        <h1 id={titleId} className="break-words text-base font-semibold text-ink">
           {title}
         </h1>
-        <p id={descId} className="mt-2 text-sm leading-relaxed text-muted">
+        <p id={descId} className="mt-2 break-words text-sm leading-relaxed text-muted">
           {description}
         </p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">

@@ -46,7 +46,7 @@ export function ExplainPanel({ dbId, sql, canAnalyze, label = 'SQL' }: ExplainPa
   };
 
   return (
-    <div className="rounded-lg border border-border bg-surface-subtle/40 p-3">
+    <div className="min-w-0 rounded-lg border border-border bg-surface-subtle/40 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
           <Gauge className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
@@ -148,8 +148,8 @@ function SinglePlanCard({ item, index }: { item: SingleExplainResult; index: num
         <p className="mt-2 text-muted">{item.note || 'Statement ini tidak memiliki execution plan.'}</p>
       ) : (
         <>
-          <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded border border-border bg-surface-subtle/50 p-2">
+          <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="min-w-0 rounded border border-border bg-surface-subtle/50 p-2">
               <dt className="text-[11px] text-muted">Scan Types</dt>
               <dd className="mt-0.5 font-mono font-medium text-ink">
                 {s.scan_types && s.scan_types.length > 0 ? s.scan_types.join(', ') : '-'}

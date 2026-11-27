@@ -425,8 +425,8 @@ export function MigrationDefinitionsPage() {
 
       {listError && <Alert variant="error">{listError}</Alert>}
 
-      <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
-        <section aria-label="Daftar definisi migration" className="card-surface p-3.5">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
+        <section aria-label="Daftar definisi migration" className="card-surface min-w-0 p-3.5">
           <h2 className="mb-2.5 flex items-center gap-1.5 px-1 text-sm font-semibold text-ink">
             <GitBranch className="h-4 w-4 text-accent" aria-hidden="true" />
             <span>Definisi Migration</span>
@@ -449,7 +449,7 @@ export function MigrationDefinitionsPage() {
               }
             />
           ) : (
-            <ul className="space-y-1.5">
+            <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-0.5 xl:max-h-[calc(100dvh-14rem)]">
               {definitions.map((def) => {
                 const selected = mode === 'inspect' && def.id === selectedId;
                 return (
@@ -502,9 +502,9 @@ export function MigrationDefinitionsPage() {
           )}
         </section>
 
-        <section className="card-surface p-5" aria-labelledby={editorHeadingId}>
+        <section className="card-surface min-w-0 p-4 sm:p-5" aria-labelledby={editorHeadingId}>
           <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
+            <div className="min-w-0">
               <h2 id={editorHeadingId} className="text-base font-semibold text-ink">
                 {mode === 'create'
                   ? 'Buat Definisi Migration Baru'
@@ -597,8 +597,8 @@ export function MigrationDefinitionsPage() {
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <fieldset className="space-y-2 rounded-lg border border-border bg-surface-subtle/40 p-3.5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface-subtle/40 p-3.5">
                 <legend className="px-1 text-xs font-semibold text-muted">
                   Mode Eksekusi (Async via Queue)
                 </legend>
@@ -642,7 +642,7 @@ export function MigrationDefinitionsPage() {
                 </div>
               </fieldset>
 
-              <fieldset className="space-y-2 rounded-lg border border-border bg-surface-subtle/40 p-3.5">
+              <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface-subtle/40 p-3.5">
                 <legend className="px-1 text-xs font-semibold text-muted">
                   Kebijakan Rollback
                 </legend>
@@ -688,12 +688,12 @@ export function MigrationDefinitionsPage() {
             </div>
 
             {editor.execution_mode === 'batch' && (
-              <fieldset className="space-y-3.5 rounded-lg border border-accent/30 bg-accent-soft/20 p-4">
+              <fieldset className="min-w-0 space-y-3.5 rounded-lg border border-accent/30 bg-accent-soft/20 p-3.5 sm:p-4">
                 <legend className="px-1 text-xs font-semibold text-accent">
                   Konfigurasi Batch (Batch by Attribute)
                 </legend>
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-1">
                     <label htmlFor="batch-schema" className="block text-xs font-medium text-ink">
                       Schema
@@ -775,7 +775,7 @@ export function MigrationDefinitionsPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1">
                     <label htmlFor="batch-where" className="block text-xs font-medium text-ink">
                       WHERE Clause (Opsional)
