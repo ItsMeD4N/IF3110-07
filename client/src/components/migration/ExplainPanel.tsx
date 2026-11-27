@@ -152,7 +152,7 @@ function SinglePlanCard({ item, index }: { item: SingleExplainResult; index: num
             <div className="rounded border border-border bg-surface-subtle/50 p-2">
               <dt className="text-[11px] text-muted">Scan Types</dt>
               <dd className="mt-0.5 font-mono font-medium text-ink">
-                {s.scan_types && s.scan_types.length > 0 ? s.scan_types.join(', ') : '—'}
+                {s.scan_types && s.scan_types.length > 0 ? s.scan_types.join(', ') : '-'}
               </dd>
             </div>
             <div className="rounded border border-border bg-surface-subtle/50 p-2">

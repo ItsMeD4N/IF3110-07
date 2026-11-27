@@ -328,7 +328,7 @@ export function MigrationDefinitionsPage() {
   const confirmCopy = useMemo(() => {
     if (!pendingAction) return null;
     const { kind, def } = pendingAction;
-    const label = `v${def.version}${def.name ? ` — ${def.name}` : ''}`;
+    const label = `v${def.version}${def.name ? ` | ${def.name}` : ''}`;
     if (kind === 'execute') {
       return {
         title: `Jalankan migration ${label}?`,
@@ -380,7 +380,7 @@ export function MigrationDefinitionsPage() {
           {actionError.code === 'database_blocked' && (
             <p className="mt-1.5">
               <Link to={`/databases/${database.id}/migrations/history`} className="font-semibold underline">
-                Buka Migration History (Execution #{actionError.blockingExecutionId ?? '—'}) →
+                Buka Migration History (Execution #{actionError.blockingExecutionId ?? '-'}) →
               </Link>
             </p>
           )}
@@ -509,7 +509,7 @@ export function MigrationDefinitionsPage() {
                 {mode === 'create'
                   ? 'Buat Definisi Migration Baru'
                   : selectedDef
-                    ? `v${selectedDef.version} — ${selectedDef.name || '(tanpa nama)'}`
+                    ? `v${selectedDef.version} | ${selectedDef.name || '(tanpa nama)'}`
                     : 'Editor Migration'}
               </h2>
               {mode === 'inspect' && selectedDef ? (
@@ -520,7 +520,7 @@ export function MigrationDefinitionsPage() {
                 </p>
               ) : (
                 <p className="mt-0.5 text-xs text-muted">
-                  Sertakan SQL up dan SQL down (atau tandai irreversible beserta alasannya). Transaksi dikelola otomatis oleh platform — jangan tulis BEGIN/COMMIT.
+                  Sertakan SQL up dan SQL down (atau tandai irreversible beserta alasannya). Transaksi dikelola otomatis oleh platform, jangan tulis BEGIN/COMMIT.
                 </p>
               )}
             </div>

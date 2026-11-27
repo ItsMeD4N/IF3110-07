@@ -545,7 +545,7 @@ export function MigrationHistoryPage() {
                             {ex.completed_batches}/{ex.total_batches} batch · {formatNumber(ex.rows_affected)} rows
                           </span>
                         ) : (
-                          <span className="text-muted">—</span>
+                          <span className="text-muted">-</span>
                         )}
                       </td>
                     </tr>
@@ -577,7 +577,7 @@ export function MigrationHistoryPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-base font-bold text-ink">
-                        Execution <span className="font-mono">#E{detail.execution_id}</span> — v
+                        Execution <span className="font-mono">#E{detail.execution_id}</span> | v
                         {detail.migration_version} {detail.migration_name}
                       </h2>
                       <StatusBadge status={detail.status} />
@@ -686,7 +686,7 @@ export function MigrationHistoryPage() {
                   <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
                     <dt className="text-muted">Job ID</dt>
                     <dd className="mt-0.5 truncate font-mono text-ink" title={detail.job_id || ''}>
-                      {detail.job_id || '—'}
+                      {detail.job_id || '-'}
                     </dd>
                   </div>
                   <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
@@ -695,7 +695,7 @@ export function MigrationHistoryPage() {
                       className="mt-0.5 truncate font-mono text-ink"
                       title={detail.trace_id || detail.correlation_id || ''}
                     >
-                      {detail.trace_id || detail.correlation_id || '—'}
+                      {detail.trace_id || detail.correlation_id || '-'}
                     </dd>
                   </div>
                   <div className="rounded-md border border-border bg-surface-subtle/40 p-2.5">
@@ -705,7 +705,7 @@ export function MigrationHistoryPage() {
                         ? `Reverts #E${detail.reverted_execution_id}`
                         : detail.parent_execution_id
                           ? `Parent #E${detail.parent_execution_id}`
-                          : '—'}
+                          : '-'}
                     </dd>
                   </div>
                 </dl>
@@ -854,7 +854,7 @@ export function MigrationHistoryPage() {
                                         {cp.sqlstate ? ` (${cp.sqlstate})` : ''}
                                       </span>
                                     ) : (
-                                      <span className="text-muted">—</span>
+                                      <span className="text-muted">-</span>
                                     )}
                                   </td>
                                 </tr>
@@ -907,7 +907,7 @@ export function MigrationHistoryPage() {
 
       <FormDialog
         open={Boolean(reviewModal)}
-        title={`Ajukan Review ${reviewModal?.action ?? ''} — #E${reviewModal?.exec.execution_id ?? ''}`}
+        title={`Ajukan Review ${reviewModal?.action ?? ''} | #E${reviewModal?.exec.execution_id ?? ''}`}
         description="Sesuai spesifikasi Milestone 2, aksi batch resume dan batch revert tetap mengikuti permission, validasi, dan approval leader setiap group."
         busy={submittingReview}
         onClose={() => setReviewModal(null)}
