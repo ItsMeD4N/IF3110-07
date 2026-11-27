@@ -100,7 +100,7 @@ export function ApprovalPanel({
 
   useEffect(() => {
     void loadRequests();
-  }, [loadRequests]);
+  }, [loadRequests, definition.revision, definition.workflow_status]);
 
   const openSubmitDialog = () => {
     setSubmitAction(defaultActionForDef());
@@ -298,10 +298,15 @@ export function ApprovalPanel({
                 </option>
               )}
               <option value="forward">forward (Jalankan Ulang SQL Up)</option>
-              {definition.execution_mode === 'batch' && (
-                <option value="batch_resume">batch_resume (Lanjutkan Checkpoint)</option>
-              )}
             </select>
+            {definition.execution_mode === 'batch' && (
+              <p className="text-xs text-muted">
+                Untuk mengajukan review <code className="font-mono">batch_resume</code> atau{' '}
+                <code className="font-mono">batch_revert</code> pada execution berstatus{' '}
+                <code className="font-mono">partial</code>, gunakan tombol review langsung pada halaman{' '}
+                <strong>History</strong> agar <code className="font-mono">target_execution_id</code> ikut tercatat.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -406,9 +411,9 @@ export function ApprovalMatrixList({ request }: { request: ApprovalRequest }) {
 
   return (
     <ul className="divide-y divide-border rounded-md border border-border bg-surface">
-      {request.approvals.map((item) => (
+      {request.approvals.map((item, idx) => (
         <li
-          key={item.group_id}
+          key={item.group_id ?? `${item.group_name}-${idx}`}
           className="flex flex-col gap-1.5 px-3.5 py-2.5 text-xs sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="min-w-0 space-y-0.5">
@@ -417,7 +422,9 @@ export function ApprovalMatrixList({ request }: { request: ApprovalRequest }) {
               <AccessBadge level={item.access_level} />
               <span className="inline-flex items-center gap-1 text-muted">
                 <Crown className="h-3 w-3 text-accent" aria-hidden="true" />
-                <span className="font-mono text-ink">{item.leader_username}</span>
+                <span className="font-mono text-ink">
+                  {item.leader_username || item.decided_by || '—'}
+                </span>
               </span>
             </div>
             {item.comment && <p className="text-muted">“{item.comment}”</p>}

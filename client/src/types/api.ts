@@ -387,12 +387,13 @@ export type ApprovalRequestStatus =
   | 'superseded';
 
 export interface GroupApprovalItem {
-  group_id: number;
+  group_id: number | null;
   group_name: string;
   access_level: AccessLevel;
-  leader_user_id: string;
-  leader_username: string;
+  leader_user_id: string | null;
+  leader_username: string | null;
   decision: ApprovalDecision;
+  decided_by?: string;
   comment: string;
   decided_at: string | null;
 }
