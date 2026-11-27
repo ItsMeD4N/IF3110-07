@@ -454,6 +454,10 @@ func (e *Engine) HandleJob(ctx context.Context, job *queue.Job) queue.JobOutcome
 		}
 	}
 	_ = e.Locker.UpdateExecution(leaseCtx, lease, exec.ID)
+	_, _ = e.PlatformDB.ExecContext(leaseCtx,
+		`UPDATE platform_migration_jobs SET execution_id = $2, updated_at = now() WHERE id = $1::uuid`,
+		job.ID, exec.ID,
+	)
 	_ = e.SetWorkflowStatus(leaseCtx, def.DatabaseID, def.ID, "running")
 
 	execMeta := telemetry.ExecMetaFrom(leaseCtx)

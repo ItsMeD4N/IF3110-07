@@ -375,6 +375,10 @@ func (m *Module) apiGetJob(w http.ResponseWriter, r *http.Request) {
 		if ex, eErr := m.Engine.GetExecution(r.Context(), dbID(r), job.ExecutionID); eErr == nil {
 			resp["execution"] = ex
 		}
+	} else if ex, eErr := m.Engine.GetLatestExecutionByJobID(r.Context(), dbID(r), job.ID); eErr == nil {
+		job.ExecutionID = ex.ID
+		resp["job"] = job
+		resp["execution"] = ex
 	}
 	httpx.WriteJSON(w, http.StatusOK, resp)
 }

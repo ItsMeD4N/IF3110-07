@@ -584,6 +584,26 @@ func (e *Engine) GetExecution(ctx context.Context, databaseID, executionID int64
 	return ex, nil
 }
 
+func (e *Engine) GetLatestExecutionByJobID(ctx context.Context, databaseID int64, jobID string) (Execution, error) {
+	ex, err := scanExecution(e.PlatformDB.QueryRowContext(ctx,
+		`SELECT `+executionColumns+` FROM platform_migration_executions WHERE database_id = $1 AND job_id = $2::uuid ORDER BY id DESC LIMIT 1`,
+		databaseID, jobID,
+	))
+	if err != nil {
+		return Execution{}, err
+	}
+	if ex.ExecutionMode == ModeBatch {
+		rootID := ex.ID
+		if ex.ParentExecutionID != nil && *ex.ParentExecutionID > 0 {
+			rootID = e.resolveRootExecutionID(ctx, *ex.ParentExecutionID)
+		}
+		if cps, err := e.ListBatchCheckpoints(ctx, rootID); err == nil {
+			ex.Checkpoints = cps
+		}
+	}
+	return ex, nil
+}
+
 func (e *Engine) resolveRootExecutionID(ctx context.Context, executionID int64) int64 {
 	cur := executionID
 	for i := 0; i < 32; i++ {

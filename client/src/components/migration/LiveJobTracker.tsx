@@ -6,6 +6,7 @@ import { getJob } from '@/services/migrations';
 import type { JobStatus, MigrationExecution, MigrationJob } from '@/types/api';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 
 const TERMINAL_STATUSES = new Set<JobStatus>([
   'completed',
@@ -24,6 +25,8 @@ interface LiveJobTrackerProps {
   dbId: number;
   jobId: string;
   initialJob?: MigrationJob;
+  embedded?: boolean;
+  onUpdate?: (job: MigrationJob, execution?: MigrationExecution) => void;
   onTerminal?: (job: MigrationJob, execution?: MigrationExecution) => void;
   onDismiss?: () => void;
 }
@@ -32,6 +35,8 @@ export function LiveJobTracker({
   dbId,
   jobId,
   initialJob,
+  embedded = false,
+  onUpdate,
   onTerminal,
   onDismiss,
 }: LiveJobTrackerProps) {
@@ -39,6 +44,8 @@ export function LiveJobTracker({
   const [execution, setExecution] = useState<MigrationExecution | undefined>(undefined);
   const [pollError, setPollError] = useState('');
   const notifiedRef = useRef(false);
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
   const onTerminalRef = useRef(onTerminal);
   onTerminalRef.current = onTerminal;
 
@@ -58,6 +65,7 @@ export function LiveJobTracker({
         setJob(res.job);
         setExecution(res.execution);
         setPollError('');
+        onUpdateRef.current?.(res.job, res.execution);
 
         if (isTerminalJobStatus(res.job.status)) {
           if (!notifiedRef.current) {
@@ -72,7 +80,7 @@ export function LiveJobTracker({
         }
       }
       if (!cancelled) {
-        timerId = window.setTimeout(() => void poll(), 1200);
+        timerId = window.setTimeout(() => void poll(), 250);
       }
     };
 
@@ -95,7 +103,11 @@ export function LiveJobTracker({
   return (
     <section
       aria-label="Pelacak status job migration"
-      className="card-surface p-4"
+      className={
+        embedded
+          ? 'rounded-lg border border-accent/30 bg-accent-soft/20 p-3.5'
+          : 'card-surface p-4'
+      }
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -154,11 +166,20 @@ export function LiveJobTracker({
               {execution.last_cursor ? ` · cursor: ${execution.last_cursor}` : ''}
             </span>
           </div>
-          <progress
+          <ProgressBar
             value={progressDone}
             max={Math.max(totalBatches, 1)}
-            aria-label="Progres batch migration"
-            className="h-2 w-full overflow-hidden rounded-full"
+            label="Progres batch migration"
+            active={!terminal}
+            tone={
+              job?.status === 'completed'
+                ? 'ok'
+                : job?.status === 'failed' || job?.status === 'uncertain'
+                  ? 'danger'
+                  : job?.status === 'partial' || job?.status === 'partially_reverted'
+                    ? 'warn'
+                    : 'accent'
+            }
           />
         </div>
       )}
