@@ -227,7 +227,7 @@ export function ApprovalPanel({
               <p className="mt-1 text-xs text-muted">
                 Diajukan oleh <span className="font-mono text-ink">{latestRequest.requested_by}</span> pada{' '}
                 {formatDateTime(latestRequest.created_at)}
-                {latestRequest.note ? ` — "${latestRequest.note}"` : ''}
+                {latestRequest.note ? ` | "${latestRequest.note}"` : ''}
               </p>
             </div>
 
@@ -267,7 +267,7 @@ export function ApprovalPanel({
 
       <FormDialog
         open={submitOpen}
-        title={`Ajukan Review — v${definition.version} ${definition.name}`}
+        title={`Ajukan Review | v${definition.version} ${definition.name}`}
         description="Permintaan review akan dikirim ke leader setiap group yang memiliki akses ke database ini (View Only & View + Edit)."
         busy={submitting}
         onClose={() => setSubmitOpen(false)}
@@ -423,7 +423,7 @@ export function ApprovalMatrixList({ request }: { request: ApprovalRequest }) {
               <span className="inline-flex items-center gap-1 text-muted">
                 <Crown className="h-3 w-3 text-accent" aria-hidden="true" />
                 <span className="font-mono text-ink">
-                  {item.leader_username || item.decided_by || '—'}
+                  {item.leader_username || item.decided_by || '-'}
                 </span>
               </span>
             </div>

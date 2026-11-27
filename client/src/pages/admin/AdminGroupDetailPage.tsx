@@ -419,7 +419,7 @@ export function AdminGroupDetailPage() {
                 <option value="">
                   {activeMembers.length === 0
                     ? 'Tambahkan anggota aktif terlebih dahulu'
-                    : '— Pilih leader group —'}
+                    : 'Pilih leader group'}
                 </option>
                 {activeMembers.map((m) => (
                   <option key={m.user_id} value={m.user_id}>
@@ -468,7 +468,7 @@ export function AdminGroupDetailPage() {
               <option value="">
                 {candidateUsers.length === 0
                   ? 'Semua user aktif sudah tergabung'
-                  : '— Pilih pengguna aktif —'}
+                  : 'Pilih pengguna aktif'}
               </option>
               {candidateUsers.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -553,7 +553,7 @@ export function AdminGroupDetailPage() {
                   ? 'Belum ada koneksi database'
                   : candidateConnections.length === 0
                     ? 'Semua koneksi sudah diberi akses'
-                    : '— Pilih database —'}
+                    : 'Pilih database'}
               </option>
               {candidateConnections.map((c) => (
                 <option key={c.id} value={c.id}>

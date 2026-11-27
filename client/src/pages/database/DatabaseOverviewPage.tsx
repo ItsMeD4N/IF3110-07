@@ -91,7 +91,7 @@ export function DatabaseOverviewPage() {
                 to={`${basePath}/migrations/history`}
                 className="font-semibold underline"
               >
-                Buka Migration History untuk meninjau Execution #{lockInfo.execution_id ?? '—'} →
+                Buka Migration History untuk meninjau Execution #{lockInfo.execution_id ?? '-'} →
               </Link>
             </div>
           </Alert>

@@ -175,7 +175,7 @@ export function DatabaseJobsPage() {
                 {!lockInfo?.locked
                   ? 'Satu database hanya menjalankan satu migration pada satu waktu; saat ini tidak ada lock aktif.'
                   : lockInfo.reason ||
-                    `Dikunci oleh worker ${lockInfo.owner_id ?? '—'} (fencing v${lockInfo.fencing_version ?? 0}).`}
+                    `Dikunci oleh worker ${lockInfo.owner_id ?? '-'} (fencing v${lockInfo.fencing_version ?? 0}).`}
               </p>
             </div>
           </div>
@@ -200,12 +200,12 @@ export function DatabaseJobsPage() {
           <dl className="mt-4 grid gap-3 border-t border-border pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <dt className="text-muted">Worker Owner</dt>
-              <dd className="mt-0.5 font-mono font-medium text-ink">{lockInfo.owner_id || '—'}</dd>
+              <dd className="mt-0.5 font-mono font-medium text-ink">{lockInfo.owner_id || '-'}</dd>
             </div>
             <div>
               <dt className="text-muted">Job / Execution</dt>
               <dd className="mt-0.5 font-mono text-ink">
-                {lockInfo.job_id ? `${lockInfo.job_id.slice(0, 12)}…` : '—'}
+                {lockInfo.job_id ? `${lockInfo.job_id.slice(0, 12)}…` : '-'}
                 {lockInfo.execution_id ? ` · #E${lockInfo.execution_id}` : ''}
               </dd>
             </div>
@@ -235,7 +235,7 @@ export function DatabaseJobsPage() {
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline"
               >
                 <span>
-                  Tinjau &amp; pulihkan Execution #{lockInfo.execution_id ?? '—'} di Migration History
+                  Tinjau &amp; pulihkan Execution #{lockInfo.execution_id ?? '-'} di Migration History
                 </span>
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
@@ -412,7 +412,7 @@ export function DatabaseJobsPage() {
                   <div>
                     <dt className="text-muted">Worker</dt>
                     <dd className="mt-0.5 truncate font-mono text-ink">
-                      {selectedDetail.job.locked_by || '—'}
+                      {selectedDetail.job.locked_by || '-'}
                     </dd>
                   </div>
                   <div>

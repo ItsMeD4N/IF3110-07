@@ -495,7 +495,7 @@ export function DatabaseViewerPage() {
                               )}
                             </td>
                             <td className="font-mono text-xs text-muted">
-                              {col.default ? col.default : '—'}
+                              {col.default ? col.default : '-'}
                             </td>
                           </tr>
                         ))}

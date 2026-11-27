@@ -506,7 +506,7 @@ export function AdminConnectionsPage() {
                 <p id="conn-password-hint" className="text-xs text-muted">
                   {editingConn
                     ? targetChangedOnEdit
-                      ? 'Target koneksi berubah — password wajib diisi ulang.'
+                      ? 'Target koneksi berubah, password wajib diisi ulang.'
                       : 'Kosongkan untuk mempertahankan password tersimpan.'
                     : 'Dienkripsi menggunakan NaCl secretbox.'}
                 </p>

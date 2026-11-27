@@ -140,7 +140,7 @@ export function ApprovalsPage() {
     <div>
       <PageHeader
         title="Approval Workflow"
-        description="Tinjau dan setujui atau tolak perubahan database (migration, rollback, forward, dan batch recovery) untuk seluruh group yang kamu pimpin — termasuk group dengan akses View Only."
+        description="Tinjau dan setujui atau tolak perubahan database (migration, rollback, forward, dan batch recovery) untuk seluruh group yang kamu pimpin, termasuk group dengan akses View Only."
         actions={
           <Button variant="secondary" size="sm" loading={loading} onClick={() => void loadPending()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -258,7 +258,7 @@ export function ApprovalsPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-base font-bold text-ink">
-                      Request #{selectedReq.id} — v{selectedReq.migration_version}{' '}
+                      Request #{selectedReq.id} | v{selectedReq.migration_version}{' '}
                       {selectedReq.migration_name}
                     </h2>
                     <Badge tone="warn">{selectedReq.action}</Badge>
