@@ -5,17 +5,19 @@ import (
 
 	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/store"
 )
 
 type myDatabase struct {
-	ID           int64              `json:"id"`
-	Name         string             `json:"name"`
-	Description  string             `json:"description"`
-	DatabaseName string             `json:"database_name"`
-	AccessLevel  authz.AccessLevel  `json:"access_level"`
-	AccessLabel  string             `json:"access_label"`
-	Permissions  []authz.Permission `json:"permissions"`
-	ViaGroups    []string           `json:"via_groups,omitempty"`
+	ID           int64                 `json:"id"`
+	Name         string                `json:"name"`
+	Description  string                `json:"description"`
+	DatabaseName string                `json:"database_name"`
+	AccessLevel  authz.AccessLevel     `json:"access_level"`
+	AccessLabel  string                `json:"access_label"`
+	Permissions  []authz.Permission    `json:"permissions"`
+	ViaGroups    []string              `json:"via_groups,omitempty"`
+	AccessGroups []store.DatabaseGroup `json:"access_groups,omitempty"`
 }
 
 func (m *Module) apiListMyDatabases(w http.ResponseWriter, r *http.Request) {
@@ -43,11 +45,24 @@ func (m *Module) apiGetMyDatabase(w http.ResponseWriter, r *http.Request) {
 		writeStoreErr(w, r, err, "")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, myDatabase{
+	resp := myDatabase{
 		ID: c.ID, Name: c.Name, Description: c.Description, DatabaseName: c.DatabaseName,
 		AccessLevel: access.Level, AccessLabel: access.Level.Label(),
 		Permissions: authz.PermissionsForLevel(access.Level),
-	})
+	}
+	if p := authz.PrincipalFrom(r.Context()); p != nil {
+		if dbs, err := m.Store.AccessibleDatabases(r.Context(), p.ID); err == nil {
+			for _, d := range dbs {
+				if d.ID == c.ID {
+					resp.ViaGroups = d.ViaGroups
+				}
+			}
+		}
+	}
+	if groups, err := m.Store.DatabaseGroups(r.Context(), c.ID); err == nil {
+		resp.AccessGroups = groups
+	}
+	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (m *Module) apiDatabaseStatus(w http.ResponseWriter, r *http.Request) {

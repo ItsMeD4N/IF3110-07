@@ -40,6 +40,8 @@ type Engine struct {
 	LockTTL         time.Duration
 	LockHeartbeat   time.Duration
 	BatchBackoff    queue.BackoffPolicy
+	
+	Workflow DefinitionChangeListener
 
 	BatchBeforeExecHook    func(ctx context.Context, execID int64, batchNum int, action Action) error
 	BeforeNormalCommitHook func(ctx context.Context, execID int64, action Action) error
@@ -86,7 +88,7 @@ func (e *Engine) checkApproval(ctx context.Context, def Definition, action Actio
 	return nil
 }
 
-func (e *Engine) EnqueueExecute(ctx context.Context, databaseID, migrationID int64, actor string, opts EnqueueOptions) (queue.Job, bool, error) {
+func (e *Engine) EnqueueExecute(ctx context.Context, databaseID, migrationID int64, actor string, opts EnqueueOptions) (job queue.Job, dedup bool, err error) {
 	def, err := e.GetDefinition(ctx, databaseID, migrationID)
 	if err != nil {
 		return queue.Job{}, false, err
@@ -95,15 +97,17 @@ func (e *Engine) EnqueueExecute(ctx context.Context, databaseID, migrationID int
 	if def.ExecutionMode == ModeBatch {
 		action = ActionBatchUp
 	}
-	if err := e.checkApproval(ctx, def, action); err != nil {
-		return queue.Job{}, false, err
-	}
 	if def.IsActive {
 		return queue.Job{}, false, ErrAlreadyActive
 	}
 	if err := e.checkNotBlocked(ctx, databaseID, 0); err != nil {
 		return queue.Job{}, false, err
 	}
+	ctx, claim, err := e.claimApproval(ctx, def, action, &opts)
+	if err != nil {
+		return queue.Job{}, false, err
+	}
+	defer func() { claim.settle(ctx, job, err) }()
 	if err := e.lockDefinitionImmutable(ctx, databaseID, migrationID); err != nil {
 		return queue.Job{}, false, err
 	}
@@ -120,7 +124,7 @@ func (e *Engine) EnqueueExecute(ctx context.Context, databaseID, migrationID int
 	})
 }
 
-func (e *Engine) EnqueueRollback(ctx context.Context, databaseID, migrationID int64, actor string, opts EnqueueOptions) (queue.Job, bool, error) {
+func (e *Engine) EnqueueRollback(ctx context.Context, databaseID, migrationID int64, actor string, opts EnqueueOptions) (job queue.Job, dedup bool, err error) {
 	def, err := e.GetDefinition(ctx, databaseID, migrationID)
 	if err != nil {
 		return queue.Job{}, false, err
@@ -137,12 +141,14 @@ func (e *Engine) EnqueueRollback(ctx context.Context, databaseID, migrationID in
 		action = ActionBatchRevert
 		payload.RootExecutionID = e.resolveRootExecutionID(ctx, def.ActiveExecutionID)
 	}
-	if err := e.checkApproval(ctx, def, action); err != nil {
-		return queue.Job{}, false, err
-	}
 	if err := e.checkNotBlocked(ctx, databaseID, 0); err != nil {
 		return queue.Job{}, false, err
 	}
+	ctx, claim, err := e.claimApproval(ctx, def, action, &opts)
+	if err != nil {
+		return queue.Job{}, false, err
+	}
+	defer func() { claim.settle(ctx, job, err) }()
 	if err := e.lockDefinitionImmutable(ctx, databaseID, migrationID); err != nil {
 		return queue.Job{}, false, err
 	}
@@ -158,7 +164,7 @@ func (e *Engine) EnqueueRollback(ctx context.Context, databaseID, migrationID in
 	})
 }
 
-func (e *Engine) EnqueueForward(ctx context.Context, databaseID, migrationID int64, actor string, opts EnqueueOptions) (queue.Job, bool, error) {
+func (e *Engine) EnqueueForward(ctx context.Context, databaseID, migrationID int64, actor string, opts EnqueueOptions) (job queue.Job, dedup bool, err error) {
 	def, err := e.GetDefinition(ctx, databaseID, migrationID)
 	if err != nil {
 		return queue.Job{}, false, err
@@ -170,12 +176,14 @@ func (e *Engine) EnqueueForward(ctx context.Context, databaseID, migrationID int
 		return queue.Job{}, false, ErrInvalidForwardOrder
 	}
 	action := ActionForward
-	if err := e.checkApproval(ctx, def, action); err != nil {
-		return queue.Job{}, false, err
-	}
 	if err := e.checkNotBlocked(ctx, databaseID, 0); err != nil {
 		return queue.Job{}, false, err
 	}
+	ctx, claim, err := e.claimApproval(ctx, def, action, &opts)
+	if err != nil {
+		return queue.Job{}, false, err
+	}
+	defer func() { claim.settle(ctx, job, err) }()
 	if err := e.lockDefinitionImmutable(ctx, databaseID, migrationID); err != nil {
 		return queue.Job{}, false, err
 	}
@@ -191,7 +199,7 @@ func (e *Engine) EnqueueForward(ctx context.Context, databaseID, migrationID int
 	})
 }
 
-func (e *Engine) EnqueueBatchResume(ctx context.Context, databaseID, executionID int64, actor string, opts EnqueueOptions) (queue.Job, bool, error) {
+func (e *Engine) EnqueueBatchResume(ctx context.Context, databaseID, executionID int64, actor string, opts EnqueueOptions) (job queue.Job, dedup bool, err error) {
 	ex, err := e.GetExecution(ctx, databaseID, executionID)
 	if err != nil {
 		return queue.Job{}, false, err
@@ -203,12 +211,14 @@ func (e *Engine) EnqueueBatchResume(ctx context.Context, databaseID, executionID
 	if err != nil {
 		return queue.Job{}, false, err
 	}
-	if err := e.checkApproval(ctx, def, ActionBatchResume); err != nil {
-		return queue.Job{}, false, err
-	}
 	if err := e.checkNotBlocked(ctx, databaseID, ex.ID); err != nil {
 		return queue.Job{}, false, err
 	}
+	ctx, claim, err := e.claimApproval(ctx, def, ActionBatchResume, &opts)
+	if err != nil {
+		return queue.Job{}, false, err
+	}
+	defer func() { claim.settle(ctx, job, err) }()
 
 	rootID := e.resolveRootExecutionID(ctx, ex.ID)
 	return e.Broker.Enqueue(ctx, queue.EnqueueRequest{
@@ -225,7 +235,7 @@ func (e *Engine) EnqueueBatchResume(ctx context.Context, databaseID, executionID
 	})
 }
 
-func (e *Engine) EnqueueBatchRevert(ctx context.Context, databaseID, executionID int64, actor string, opts EnqueueOptions) (queue.Job, bool, error) {
+func (e *Engine) EnqueueBatchRevert(ctx context.Context, databaseID, executionID int64, actor string, opts EnqueueOptions) (job queue.Job, dedup bool, err error) {
 	ex, err := e.GetExecution(ctx, databaseID, executionID)
 	if err != nil {
 		return queue.Job{}, false, err
@@ -258,12 +268,14 @@ func (e *Engine) EnqueueBatchRevert(ctx context.Context, databaseID, executionID
 		return queue.Job{}, false, fmt.Errorf("%w: batch revert hanya untuk execution partial, partially_reverted, atau aktif terakhir", ErrInvalidState)
 	}
 
-	if err := e.checkApproval(ctx, def, ActionBatchRevert); err != nil {
-		return queue.Job{}, false, err
-	}
 	if err := e.checkNotBlocked(ctx, databaseID, allowBlocked); err != nil {
 		return queue.Job{}, false, err
 	}
+	ctx, claim, err := e.claimApproval(ctx, def, ActionBatchRevert, &opts)
+	if err != nil {
+		return queue.Job{}, false, err
+	}
+	defer func() { claim.settle(ctx, job, err) }()
 
 	return e.Broker.Enqueue(ctx, queue.EnqueueRequest{
 		DatabaseID:     databaseID,
@@ -486,7 +498,7 @@ func (e *Engine) revalidateUnderLock(ctx context.Context, job *queue.Job, action
 		return Definition{}, 0, "", err
 	}
 
-	if err := e.checkApproval(ctx, def, action); err != nil {
+	if err := e.checkApproval(WithApprovalKey(ctx, job.IdempotencyKey), def, action); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return def, 0, def.SQLUp, err

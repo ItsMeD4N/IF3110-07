@@ -3,7 +3,7 @@
 Dokumen ini menjadi acuan bersama antara **Frontend (SPA)** dan **Backend (Go)** untuk integrasi Milestone 2.
 
 - Bagian **1** menjelaskan konvensi HTTP, autentikasi, CSRF, dan format error.
-- Bagian **2** adalah **kontrak baru (`[NEW / NEED BACKEND]`)** yang perlu disepakati dan diimplementasikan backend agar fitur **Group Leader**, **Workflow & Approval**, dan **SPA Serving** dapat terhubung penuh.
+- Bagian **2** adalah kontrak **Group Leader**, **Workflow & Approval**, 
 - Bagian **3** adalah referensi ringkas endpoint yang **sudah tersedia di `main`**.
 
 ---
@@ -45,7 +45,7 @@ Dokumen ini menjadi acuan bersama antara **Frontend (SPA)** dan **Backend (Go)**
 
 ---
 
-## 2. Kontrak Baru (`[NEW / NEED BACKEND]`)
+## 2. Kontrak Milestone 2
 
 Bagian ini merupakan dependensi Frontend SPA terhadap Backend untuk memenuhi spesifikasi Milestone 2.
 
@@ -82,7 +82,8 @@ Bagian ini merupakan dependensi Frontend SPA terhadap Backend untuk memenuhi spe
 ```
 
 - **Response `200 OK`:** Object `Group` terbaru (termasuk `leader_user_id` dan `leader_username`).
-- **Error:** `422` jika user bukan anggota group / user nonaktif, `404` jika group/user tidak ditemukan.
+- **Error:** `422` jika user bukan anggota group / user nonaktif / `user_id` bukan UUID, `404` jika group/user tidak ditemukan.
+- `user_id: null` atau `""` → mencabut leader. Jika leader dikeluarkan dari group (atau user dihapus), leader otomatis menjadi `null` (dijaga FK di database).
 
 #### 3) Tambahan Info Leader pada `GET /api/authz/me`
 
@@ -131,6 +132,9 @@ Sesuai spesifikasi Milestone 2:
   - Membentuk baris approval (`status: "pending"`) untuk setiap group leader yang relevan.
   - Untuk `up`/`batch_up`, mengubah `workflow_status` definisi menjadi `"pending_review"`.
   - Jika definisi yang belum immutable diedit (`PUT .../definitions/{migrationID}`), request review sebelumnya untuk definisi tersebut otomatis dibatalkan/di-invalidate dan `workflow_status` kembali ke `"draft"`.
+- **Normalisasi aksi** (agar cocok dengan aksi yang dipakai engine saat enqueue): `up` pada definisi batch → `batch_up`; `rollback` pada definisi batch → `batch_revert`. `rollback` otomatis mengisi `target_execution_id` = execution aktif.
+- **Validasi awal:** `409 already_active` (up/forward saat sudah aktif), `409 not_latest_active`, `409 invalid_forward_order`, `422 migration_irreversible`, `409 approval_already_open` (masih ada pengajuan `pending_review`/`approved` untuk migration + aksi yang sama), `422 group_leader_missing` (payload tambahan `groups: string[]`).
+- Approval terikat pada `migration_revision`; jika definisi diedit, approval lama otomatis `superseded`.
 - **Response `201 Created`:** Object `ApprovalRequest` (lihat struktur di bawah).
 
 #### 2) Daftar Approval Request pada Suatu Database
@@ -193,7 +197,7 @@ Sesuai spesifikasi Milestone 2:
 
 - **Endpoint:** `GET /api/databases/{dbID}/approval-requests/{requestID}`
 - **Permission:** `db.migrations.view`.
-- **Response `200 OK`:** Object `ApprovalRequest` tunggal (boleh menyertakan ringkasan `sql_up` / `sql_down` / `execution_mode` / `batch_config` atau SPA mengambilnya dari `GET .../definitions/{migrationID}`).
+- **Response `200 OK`:** Object `ApprovalRequest` tunggal, ditambah field `definition: { sql_up, sql_down, is_irreversible, irreversible_reason, execution_mode, batch_config, workflow_status, current_revision }` agar reviewer bisa membaca SQL.
 
 #### 4) Inbox Approval Lintas Database (untuk Leader yang Sedang Login)
 
@@ -220,6 +224,7 @@ Sesuai spesifikasi Milestone 2:
   - Jika user adalah leader dari beberapa group yang sama-sama mengakses `dbID`, keputusan langsung diterapkan untuk semua group yang ia pimpin pada request tersebut (atau terima `group_id` opsional).
   - Saat seluruh group berstatus `"approved"` → status `ApprovalRequest` menjadi `"approved"` (dan untuk `up`/`batch_up`, `workflow_status` definisi menjadi `"approved"`).
   - Saat salah satu leader melakukan `reject` → status `ApprovalRequest` menjadi `"rejected"` (dan jika definisi belum immutable, user `View + Edit` dapat mengedit definisi lalu mengajukan review ulang).
+- **Error:** `403 forbidden` (bukan leader group terkait), `404` (tidak punya akses DB / request tidak ada), `409 already_decided`, `409 invalid_state` (request tidak lagi `pending_review`), `422 validation_error` (reject tanpa `comment`).
 - **Response `200 OK`:** Object `ApprovalRequest` terbaru.
 
 #### 6) Keterkaitan dengan Enqueue (`Execute` / `Rollback` / `Forward` / `Resume` / `Revert`)
@@ -227,33 +232,54 @@ Sesuai spesifikasi Milestone 2:
 - Saat `REQUIRE_APPROVAL=true` (aktif di production/demo M2):
   - Pemanggilan `POST .../execute`, `/rollback`, `/forward`, `/resume`, atau `/revert` memeriksa keberadaan `ApprovalRequest` berstatus `"approved"` untuk `(database_id, migration_id, action)`.
   - Jika belum approved → balas `403` dengan `code: "approval_required"`.
-  - Saat job berhasil di-enqueue (atau selesai), `ApprovalRequest` ditandai `"consumed"` agar aksi rollback/forward/resume berikutnya tetap memerlukan approval baru.
+  - Saat job berhasil di-enqueue, `ApprovalRequest` ditandai `"consumed"` secara **atomik** (satu approval = satu job, aman terhadap request paralel) agar aksi rollback/forward/resume berikutnya tetap memerlukan approval baru.
+  - Klaim approval diikat ke `idempotency_key` job: retry dengan key yang sama tetap dideduplikasi (bukan `403`), dan worker merevalidasi approval di bawah lock.
+  - Endpoint legacy M1 yang mengeksekusi SQL secara sinkron (`POST /api/databases/{dbID}/migrations`, `POST .../migration-drafts/{id}/execute`) dibalas `403 approval_required`.
+- Saat `REQUIRE_APPROVAL=false`, endpoint approval tetap berfungsi (informasional) tetapi enqueue tidak diblokir.
+
+#### 7) `[TAMBAHAN]` Riwayat Approval & Timeline per Migration
+- `GET /api/databases/{dbID}/migrations/definitions/{migrationID}/approval-requests` (`View`) → `{ approval_requests }` seluruh pengajuan migration tersebut.
+- `GET /api/databases/{dbID}/migrations/definitions/{migrationID}/history?hide_rollback=true|false` (`View`) → `{ definition, hide_rollback, executions, approval_requests }` — seluruh attempt (termasuk gagal) + seluruh pengajuan approval.
+
+#### 8) `[TAMBAHAN]` Filter Riwayat Eksekusi
+`GET /api/databases/{dbID}/migrations/executions` kini menerima query opsional (filter diterapkan **setelah** `hide_rollback`, sehingga pasangan eksekusi–rollback tetap ditentukan dari riwayat lengkap):
+
+| Query | Contoh | Keterangan |
+|---|---|---|
+| `hide_rollback` | `true` | Seperti sebelumnya |
+| `migration_id` | `12` | |
+| `status` | `success,failed` | `pending, running, success, failed, partial, partially_reverted, reverted, uncertain` |
+| `action` | `up,rollback` | `up, rollback, forward, batch_up, batch_resume, batch_revert` |
+| `actor` | `bob` | case-insensitive |
+| `since` / `until` | `2026-11-26T05:00:00Z` | RFC3339 |
+| `limit` / `offset` | `50` / `0` | maks 1000 |
+
+Response: `{ hide_rollback, executions, total, limit, offset, summary: { total_attempts, by_status, by_action, active_version } }` (field lama tetap ada).
 
 ---
 
 ### 2.3 Penyempurnaan Minor & Integrasi SPA Serving
 
-| No  | Item                          | Detail                                                                                                                                                                                        | Prioritas            |
-| --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| 1   | **SPA Static & Fallback**     | Server Go men-serve `client/dist/` dan mengembalikan `index.html` untuk semua `GET` non-`/api/*`, menggantikan HTML template M1. Route `/api/*` tak dikenal tetap JSON `404`.                 | Wajib (sebelum demo) |
-| 2   | **Delete Draft Definition**   | `DELETE /api/databases/{dbID}/migrations/definitions/{migrationID}` (hanya jika `!is_locked_immutable`, balas `204 No Content`, atau `409 migration_immutable` jika sudah pernah dieksekusi). | Opsional (UX)        |
-| 3   | **Self-demote Guard**         | `PUT /api/admin/users/{id}` menolak jika admin mencoba mencabut `is_platform_admin` miliknya sendiri (menyamai validasi halaman M1).                                                          | Disarankan           |
-| 4   | **`via_groups` di Detail DB** | Menyertakan `via_groups` (dan daftar group akses DB jika relevan) pada `GET /api/databases/{dbID}`.                                                                                           | Opsional             |
+| No | Item | Detail | Prioritas |
+|---|---|---|---|
+| 1 | **SPA Static & Fallback** | Server Go men-serve `client/dist/` dan mengembalikan `index.html` untuk semua `GET` non-`/api/*`, menggantikan HTML template M1. Route `/api/*` tak dikenal tetap JSON `404`. | Wajib (sebelum demo) |
+| 2 | **Delete Draft Definition** ✅ | `DELETE /api/databases/{dbID}/migrations/definitions/{migrationID}` (`View+Edit`; hanya jika `!is_locked_immutable` dan belum punya job/eksekusi, balas `204 No Content`, atau `409 migration_immutable`). | Opsional (UX) |
+| 3 | **Self-demote Guard** ✅ | `PUT /api/admin/users/{id}` menolak (`400`) jika admin mencoba mencabut `is_platform_admin` miliknya sendiri. | Disarankan |
+| 4 | **`via_groups` di Detail DB** ✅ | `GET /api/databases/{dbID}` menyertakan `via_groups` dan `access_groups: [{ group_id, group_name, access_level, leader_user_id, leader_username }]` (siapa saja yang harus approve). | Opsional |
 
 ---
 
 ## 3. Referensi Ringkas API Existing (Sudah Ada di `main`)
 
 ### 3.1 Auth, CSRF & Health
-
-| Method & Path           | Request / Query          | Response Sukses                                                                   |
-| ----------------------- | ------------------------ | --------------------------------------------------------------------------------- |
-| `GET /api/health`       | —                        | `200` `{ status, timestamp }`                                                     |
-| `GET /api/csrf-token`   | —                        | `200` `{ csrf_token }` (+ set cookie `csrf_token`)                                |
-| `POST /api/auth/login`  | `{ username, password }` | `200` `{ message, user }` (+ set `app_session_id` & rotasi `csrf_token`)          |
-| `POST /api/auth/logout` | —                        | `200` `{ message }` (+ revoke sesi & clear cookie)                                |
-| `GET /api/auth/me`      | —                        | `200` `User`                                                                      |
-| `GET /api/authz/me`     | —                        | `200` `{ id, username, is_platform_admin, permissions }` _(+ `led_groups` di M2)_ |
+| Method & Path | Request / Query | Response Sukses |
+|---|---|---|
+| `GET /api/health` | — | `200` `{ status, timestamp }` |
+| `GET /api/csrf-token` | — | `200` `{ csrf_token }` (+ set cookie `csrf_token`) |
+| `POST /api/auth/login` | `{ username, password }` | `200` `{ message, user }` (+ set `app_session_id` & rotasi `csrf_token`) |
+| `POST /api/auth/logout` | — | `200` `{ message }` (+ revoke sesi & clear cookie) |
+| `GET /api/auth/me` | — | `200` `User` |
+| `GET /api/authz/me` | — | `200` `{ id, username, is_platform_admin, permissions, led_groups }` |
 
 ### 3.2 Platform Admin — Users, Groups, Grants, Connections
 

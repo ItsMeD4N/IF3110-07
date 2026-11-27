@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"unicode/utf8"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/ItsMeD4N/IF3110-07/server/internal/authz"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/httpx"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/store"
+	"github.com/ItsMeD4N/IF3110-07/server/internal/telemetry"
 )
 
 const (
@@ -22,14 +24,73 @@ type meResponse struct {
 	Username        string             `json:"username"`
 	IsPlatformAdmin bool               `json:"is_platform_admin"`
 	Permissions     []authz.Permission `json:"permissions"`
+	LedGroups       []store.GroupRef   `json:"led_groups"`
 }
 
 func (m *Module) apiMe(w http.ResponseWriter, r *http.Request) {
 	p := authz.PrincipalFrom(r.Context())
+	led, err := m.Store.LedGroups(r.Context(), p.ID)
+	if err != nil {
+		httpx.Internal(w, r, err)
+		return
+	}
 	httpx.WriteJSON(w, http.StatusOK, meResponse{
 		ID: p.ID, Username: p.Username, IsPlatformAdmin: p.IsPlatformAdmin,
 		Permissions: authz.PlatformPermissions(p),
+		LedGroups:   led,
 	})
+}
+
+type leaderRequest struct {
+	UserID *string `json:"user_id"`
+}
+
+func (m *Module) apiSetGroupLeader(w http.ResponseWriter, r *http.Request) {
+	groupID, ok := httpx.PathID(w, r, "groupID")
+	if !ok {
+		return
+	}
+	var req leaderRequest
+	if !httpx.DecodeJSON(w, r, &req) {
+		return
+	}
+	userID := ""
+	if req.UserID != nil {
+		userID = *req.UserID
+	}
+	if userID != "" {
+		if !validUUID(userID) {
+			httpx.ValidationError(w, "user_id harus UUID yang valid.")
+			return
+		}
+		switch err := m.checkMemberCandidate(r.Context(), userID); {
+		case errors.Is(err, errInactiveMember):
+			httpx.ValidationError(w, "User nonaktif tidak dapat menjadi leader group.")
+			return
+		case err != nil:
+			writeStoreErr(w, r, err, "")
+			return
+		}
+	}
+	g, err := m.Store.SetGroupLeader(r.Context(), groupID, userID)
+	if errors.Is(err, store.ErrLeaderNotMember) {
+		httpx.ValidationError(w, "Leader harus merupakan anggota group.")
+		return
+	}
+	if err != nil {
+		writeStoreErr(w, r, err, "")
+		return
+	}
+	leader := ""
+	if g.LeaderUsername != nil {
+		leader = *g.LeaderUsername
+	}
+	telemetry.LogEvent(r.Context(), slog.LevelInfo, "admin.group_leader_set",
+		slog.Int64("group_id", groupID),
+		slog.String("leader_username", leader),
+		slog.String("status", "success"),
+	)
+	httpx.WriteJSON(w, http.StatusOK, g)
 }
 
 type groupRequest struct {

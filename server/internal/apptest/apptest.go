@@ -43,8 +43,17 @@ type Env struct {
 
 func New(t *testing.T) *Env {
 	t.Helper()
+	return NewWithOptions(t, nil)
+}
+
+func NewWithOptions(t *testing.T, mutate func(*app.Options)) *Env {
+	t.Helper()
 	db := testutil.OpenDB(t)
-	a, err := app.New(db, app.Options{AppEnv: "test", ClientDir: clientDir, EncryptionKey: secretbox.DevKey()})
+	opts := app.Options{AppEnv: "test", ClientDir: clientDir, EncryptionKey: secretbox.DevKey()}
+	if mutate != nil {
+		mutate(&opts)
+	}
+	a, err := app.New(db, opts)
 	if err != nil {
 		t.Fatal(err)
 	}

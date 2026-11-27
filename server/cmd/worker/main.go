@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ItsMeD4N/IF3110-07/server/internal/approval"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/config"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/connmgr"
 	"github.com/ItsMeD4N/IF3110-07/server/internal/database"
@@ -86,6 +87,11 @@ func main() {
 	engine := migration.NewEngine(db, conns, locker, broker, migration.EngineOptions{
 		RequireApproval: cfg.RequireApproval,
 	})
+	approvals := approval.NewService(db, engine, st, cfg.RequireApproval)
+	engine.Workflow = approvals
+	if cfg.RequireApproval {
+		engine.ApprovalChecker = approvals
+	}
 	pool := queue.NewWorkerPool(broker, engine, queue.PoolOptions{
 		Concurrency: cfg.WorkerConcurrency,
 	})

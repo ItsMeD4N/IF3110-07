@@ -18,7 +18,7 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux) {
 	}
 	mux.Handle("GET /api/databases/{dbID}/migrations", api(authz.PermDBViewMigrations, m.apiHistory))
 	mux.Handle("GET /api/databases/{dbID}/migrations/{version}", api(authz.PermDBViewMigrations, m.apiDetail))
-	mux.Handle("POST /api/databases/{dbID}/migrations", api(authz.PermDBCreateMigration, m.requireExecute(m.apiRun)))
+	mux.Handle("POST /api/databases/{dbID}/migrations", api(authz.PermDBCreateMigration, m.requireExecute(m.legacyGate(m.apiRun))))
 	mux.Handle("POST /api/databases/{dbID}/migrations/explain", api(authz.PermDBViewMigrations, m.apiExplain))
 
 	mux.Handle("GET /api/databases/{dbID}/migration-drafts", api(authz.PermDBViewMigrations, m.apiDrafts))
@@ -26,7 +26,7 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/databases/{dbID}/migration-drafts/{draftID}", api(authz.PermDBViewMigrations, m.apiDraft))
 	mux.Handle("PUT /api/databases/{dbID}/migration-drafts/{draftID}", api(authz.PermDBEditMigration, m.apiUpdateDraft))
 	mux.Handle("DELETE /api/databases/{dbID}/migration-drafts/{draftID}", api(authz.PermDBEditMigration, m.apiDeleteDraft))
-	mux.Handle("POST /api/databases/{dbID}/migration-drafts/{draftID}/execute", api(authz.PermDBExecuteMigration, m.apiRunDraft))
+	mux.Handle("POST /api/databases/{dbID}/migration-drafts/{draftID}/execute", api(authz.PermDBExecuteMigration, m.legacyGate(m.apiRunDraft)))
 
 	m.registerEngineRoutes(mux)
 
@@ -51,6 +51,17 @@ func (m *Module) requireExecute(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if a, _ := authz.DBAccessFrom(r.Context()); !a.Can(authz.PermDBExecuteMigration) {
 			httpx.Forbidden(w)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (m *Module) legacyGate(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if m.Engine != nil && m.Engine.RequireApproval {
+			httpx.WriteError(w, http.StatusForbidden, "approval_required",
+				"Eksekusi langsung dinonaktifkan: buat definisi migration, ajukan review ke leader group, lalu jalankan lewat queue.")
 			return
 		}
 		next(w, r)

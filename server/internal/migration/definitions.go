@@ -322,6 +322,10 @@ func (e *Engine) UpdateDefinition(ctx context.Context, databaseID, migrationID i
 	if err != nil {
 		return Definition{}, err
 	}
+	e.notifyDefinitionChanged(ctx, databaseID, migrationID, actor)
+	if fresh, gErr := e.GetDefinitionRaw(ctx, databaseID, migrationID); gErr == nil {
+		def = fresh
+	}
 	return def, nil
 }
 

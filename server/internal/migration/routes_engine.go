@@ -25,6 +25,7 @@ func (m *Module) registerEngineRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/databases/{dbID}/migrations/definitions", api(authz.PermDBCreateMigration, m.apiCreateDefinition))
 	mux.Handle("GET /api/databases/{dbID}/migrations/definitions/{migrationID}", api(authz.PermDBViewMigrations, m.apiGetDefinition))
 	mux.Handle("PUT /api/databases/{dbID}/migrations/definitions/{migrationID}", api(authz.PermDBEditMigration, m.apiUpdateDefinition))
+	mux.Handle("DELETE /api/databases/{dbID}/migrations/definitions/{migrationID}", api(authz.PermDBEditMigration, m.apiDeleteDefinition))
 
 	mux.Handle("POST /api/databases/{dbID}/migrations/definitions/{migrationID}/execute", api(authz.PermDBExecuteMigration, m.apiEnqueueExecute))
 	mux.Handle("POST /api/databases/{dbID}/migrations/definitions/{migrationID}/rollback", api(authz.PermDBExecuteMigration, m.apiEnqueueRollback))
@@ -240,15 +241,29 @@ func (m *Module) apiEnqueueForward(w http.ResponseWriter, r *http.Request) {
 func (m *Module) apiListExecutions(w http.ResponseWriter, r *http.Request) {
 	r = withRequestContext(r)
 	hideRollback := r.URL.Query().Get("hide_rollback") == "true" || r.URL.Query().Get("hide_rollback") == "1"
+	filter, err := ParseExecutionFilter(r.URL.Query())
+	if err != nil {
+		writeEngineErr(w, r, err)
+		return
+	}
 	execs, err := m.Engine.ListExecutions(r.Context(), dbID(r), hideRollback)
 	if err != nil {
 		httpx.Internal(w, r, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+	execs = FilterExecutions(execs, filter)
+	page, total := Paginate(execs, filter)
+	resp := map[string]any{
 		"hide_rollback": hideRollback,
-		"executions":    execs,
-	})
+		"executions":    page,
+		"total":         total,
+		"limit":         filter.Limit,
+		"offset":        filter.Offset,
+	}
+	if summary, err := m.Engine.HistorySummary(r.Context(), dbID(r)); err == nil {
+		resp["summary"] = summary
+	}
+	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (m *Module) apiGetExecution(w http.ResponseWriter, r *http.Request) {
