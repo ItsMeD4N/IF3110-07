@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -12,17 +11,8 @@ import (
 )
 
 func setupTestDB(t *testing.T) SessionRepository {
-	connStr := os.Getenv("DATABASE_URL")
-	if connStr == "" {
-		connStr = "postgres://postgres:postgres@localhost:5433/platform_db?sslmode=disable"
-	}
-
-	db, err := testutil.InitDB(connStr)
-	if err != nil {
-		t.Fatalf("Gagal terhubung ke DB: %v", err)
-	}
-
-	return NewSessionRepository(db)
+	t.Helper()
+	return NewSessionRepository(testutil.OpenDB(t))
 }
 
 func TestSession_CreateAndCookie(t *testing.T) {

@@ -130,8 +130,19 @@ func TestSession_ForceRotateKeepsOldHash(t *testing.T) {
 
 func TestSession_ConcurrentRotationProducesOneToken(t *testing.T) {
 	ctx := context.Background()
+	db := testutil.OpenDB(t)
+	repo := NewSessionRepository(db)
+
 	for round := 0; round < 10; round++ {
-		mgr, userID := newRotationUser(t)
+		var userID string
+		if err := db.QueryRow(`INSERT INTO users (username, password_hash) VALUES ($1, 'x') RETURNING id`,
+			testutil.Unique("rot")).Scan(&userID); err != nil {
+			t.Fatal(err)
+		}
+		uid := userID
+		t.Cleanup(func() { db.Exec(`DELETE FROM users WHERE id = $1`, uid) })
+
+		mgr := NewManager(repo, false)
 		start := time.Now()
 		mgr.SetNowFunc(func() time.Time { return start })
 		sess, token, err := mgr.CreateSession(ctx, userID, "127.0.0.1", "race")
@@ -155,7 +166,7 @@ func TestSession_ConcurrentRotationProducesOneToken(t *testing.T) {
 		}
 		wg.Wait()
 
-		cur, err := NewSessionRepository(testutil.OpenDB(t)).GetSessionByTokenHash(ctx, HashToken(token))
+		cur, err := repo.GetSessionByTokenHash(ctx, HashToken(token))
 		if err != nil {
 			t.Fatal(err)
 		}
