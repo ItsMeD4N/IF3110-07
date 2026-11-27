@@ -70,21 +70,21 @@ export function WorkflowStepper({ status }: { status: WorkflowStatus }) {
                 : step.label;
 
           const pillClass = isFailed
-            ? 'border-danger/40 bg-danger-soft text-danger font-semibold'
+            ? 'border-ink bg-ink text-bg font-semibold'
             : isWarn
-              ? 'border-warn/40 bg-warn-soft text-warn font-semibold'
+              ? 'border-border-strong border-dashed text-ink font-semibold'
               : isCompleted
-                ? 'border-ok/30 bg-ok-soft text-ok font-medium'
+                ? 'border-border-strong text-ink'
                 : isCurrent
-                  ? 'border-accent/40 bg-accent-soft text-accent font-semibold'
-                  : 'border-border bg-surface text-muted';
+                  ? 'border-ink text-ink font-semibold'
+                  : 'border-border text-muted';
 
           return (
             <li key={step.key} className="flex items-center gap-1.5">
               {i > 0 && <span aria-hidden="true" className="h-px w-4 bg-border-strong" />}
               <span
                 aria-current={isCurrent ? 'step' : undefined}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 whitespace-nowrap ${pillClass}`}
+                className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 whitespace-nowrap ${pillClass}`}
               >
                 {isFailed ? (
                   <X className="h-3 w-3" aria-hidden="true" />

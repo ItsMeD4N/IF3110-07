@@ -599,7 +599,7 @@ export function MigrationDefinitionsPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <fieldset className="space-y-2 rounded-lg border border-border bg-surface-subtle/40 p-3.5">
-                <legend className="px-1 text-xs font-semibold text-muted uppercase">
+                <legend className="px-1 text-xs font-semibold text-muted">
                   Mode Eksekusi (Async via Queue)
                 </legend>
                 <div className="flex flex-col gap-2">
@@ -643,7 +643,7 @@ export function MigrationDefinitionsPage() {
               </fieldset>
 
               <fieldset className="space-y-2 rounded-lg border border-border bg-surface-subtle/40 p-3.5">
-                <legend className="px-1 text-xs font-semibold text-muted uppercase">
+                <legend className="px-1 text-xs font-semibold text-muted">
                   Kebijakan Rollback
                 </legend>
                 <div className="flex flex-col gap-2">
@@ -689,7 +689,7 @@ export function MigrationDefinitionsPage() {
 
             {editor.execution_mode === 'batch' && (
               <fieldset className="space-y-3.5 rounded-lg border border-accent/30 bg-accent-soft/20 p-4">
-                <legend className="px-1 text-xs font-semibold text-accent uppercase">
+                <legend className="px-1 text-xs font-semibold text-accent">
                   Konfigurasi Batch (Batch by Attribute)
                 </legend>
 

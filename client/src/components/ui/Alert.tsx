@@ -11,10 +11,10 @@ interface AlertProps {
 }
 
 const variantConfig: Record<AlertVariant, { classes: string; Icon: typeof Info; role: 'status' | 'alert' }> = {
-  info: { classes: 'bg-accent-soft text-accent border-accent/25', Icon: Info, role: 'status' },
-  success: { classes: 'bg-ok-soft text-ok border-ok/25', Icon: CheckCircle2, role: 'status' },
-  warning: { classes: 'bg-warn-soft text-warn border-warn/25', Icon: AlertTriangle, role: 'status' },
-  error: { classes: 'bg-danger-soft text-danger border-danger/30', Icon: AlertCircle, role: 'alert' },
+  info: { classes: 'bg-surface text-ink border-border', Icon: Info, role: 'status' },
+  success: { classes: 'bg-surface text-ink border-border-strong', Icon: CheckCircle2, role: 'status' },
+  warning: { classes: 'bg-surface text-ink border-border-strong border-dashed', Icon: AlertTriangle, role: 'status' },
+  error: { classes: 'bg-surface text-ink border-ink', Icon: AlertCircle, role: 'alert' },
 };
 
 export function Alert({ variant = 'info', title, children, className = '' }: AlertProps) {

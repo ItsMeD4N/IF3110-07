@@ -570,7 +570,7 @@ export function AdminUsersPage() {
           </div>
 
           <fieldset className="space-y-2.5 rounded-lg border border-border bg-surface-subtle/50 p-3.5">
-            <legend className="px-1 text-xs font-semibold text-muted uppercase">
+            <legend className="px-1 text-xs font-semibold text-muted">
               Peran &amp; Status Akun
             </legend>
             <div className="flex items-center gap-2">

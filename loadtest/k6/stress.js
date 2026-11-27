@@ -148,6 +148,10 @@ function params(jar, kind, name, stage) {
 }
 
 export function setup() {
+  const health = http.get(`${BASE_URL}/api/health`, { tags: { kind: 'setup', name: 'GET /api/health' } });
+  if (health.status !== 200) {
+    exec.test.abort(`server tidak bisa dihubungi di ${BASE_URL} (status ${health.status}); jalankan server Go dulu (cd server; go run .)`);
+  }
   const jar = login(EDITOR);
   if (!jar) {
     exec.test.abort(`login ${EDITOR} gagal; jalankan devseed dan cek SEED_PASSWORD`);
@@ -334,7 +338,6 @@ export function handleSummary(data) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   return {
     stdout: text,
-    [`loadtest/k6/results/summary-${stamp}.md`]: text,
-    [`loadtest/k6/results/summary-${stamp}.json`]: JSON.stringify(data, null, 2),
+    [`loadtest/k6/summary-${stamp}.md`]: text,
   };
 }

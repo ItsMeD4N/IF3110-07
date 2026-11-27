@@ -14,7 +14,7 @@ export function CardGridSkeleton({ count = 3 }: { count?: number }) {
         <div key={i} className="card-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <SkeletonLine className="h-5 w-36" />
-            <SkeletonLine className="h-5 w-20 rounded-full" />
+            <SkeletonLine className="h-5 w-20" />
           </div>
           <SkeletonLine className="h-3.5 w-24" />
           <SkeletonLine className="h-4 w-full" />

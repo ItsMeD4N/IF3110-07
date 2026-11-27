@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
 
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -25,119 +30,30 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
-  --bg-light: #f6f7f9;
-  --bg-dark: #0f1217;
-  --surface-light: #ffffff;
-  --surface-dark: #161b22;
-  --surface-subtle-light: #f0f2f6;
-  --surface-subtle-dark: #1e242e;
-  --sidebar-light: #fbfcfe;
-  --sidebar-dark: #13171e;
-  --border-light: #dfe3ea;
-  --border-dark: #2a313c;
-  --border-strong-light: #c5ccd8;
-  --border-strong-dark: #3b4454;
-  --ink-light: #161b22;
-  --ink-dark: #e8ecf2;
-  --muted-light: #556070;
-  --muted-dark: #97a3b4;
-  --accent-light: #2557d6;
-  --accent-dark: #7498ff;
-  --accent-hover-light: #1e47b3;
-  --accent-hover-dark: #8cabff;
-  --accent-ink-light: #ffffff;
-  --accent-ink-dark: #0c1220;
-  --accent-soft-light: #e8effe;
-  --accent-soft-dark: #1c2947;
-  --danger-light: #bf2b26;
-  --danger-dark: #f27a74;
-  --danger-soft-light: #fdeceb;
-  --danger-soft-dark: #381c1d;
-  --ok-light: #176f3f;
-  --ok-dark: #58c98a;
-  --ok-soft-light: #e6f5ec;
-  --ok-soft-dark: #163022;
-  --warn-light: #8f5700;
-  --warn-dark: #e6b152;
-  --warn-soft-light: #fdf3e0;
-  --warn-soft-dark: #362a14;
-  --scrollbar-track-light: #eceff4;
-  --scrollbar-track-dark: #181d25;
-  --scrollbar-thumb-light: #6d7787;
-  --scrollbar-thumb-dark: #7d8899;
-
-  --bg: var(--bg-light);
-  --surface: var(--surface-light);
-  --surface-subtle: var(--surface-subtle-light);
-  --sidebar: var(--sidebar-light);
-  --border: var(--border-light);
-  --border-strong: var(--border-strong-light);
-  --ink: var(--ink-light);
-  --muted: var(--muted-light);
-  --accent: var(--accent-light);
-  --accent-hover: var(--accent-hover-light);
-  --accent-ink: var(--accent-ink-light);
-  --accent-soft: var(--accent-soft-light);
-  --danger: var(--danger-light);
-  --danger-soft: var(--danger-soft-light);
-  --ok: var(--ok-light);
-  --ok-soft: var(--ok-soft-light);
-  --warn: var(--warn-light);
-  --warn-soft: var(--warn-soft-light);
-  --scrollbar-track: var(--scrollbar-track-light);
-  --scrollbar-thumb: var(--scrollbar-thumb-light);
-  --shadow-card: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 7%);
-  --shadow-overlay: 0 12px 32px rgb(15 23 42 / 18%), 0 2px 8px rgb(15 23 42 / 10%);
-
-  @media (prefers-color-scheme: dark) {
-    --bg: var(--bg-dark);
-    --surface: var(--surface-dark);
-    --surface-subtle: var(--surface-subtle-dark);
-    --sidebar: var(--sidebar-dark);
-    --border: var(--border-dark);
-    --border-strong: var(--border-strong-dark);
-    --ink: var(--ink-dark);
-    --muted: var(--muted-dark);
-    --accent: var(--accent-dark);
-    --accent-hover: var(--accent-hover-dark);
-    --accent-ink: var(--accent-ink-dark);
-    --accent-soft: var(--accent-soft-dark);
-    --danger: var(--danger-dark);
-    --danger-soft: var(--danger-soft-dark);
-    --ok: var(--ok-dark);
-    --ok-soft: var(--ok-soft-dark);
-    --warn: var(--warn-dark);
-    --warn-soft: var(--warn-soft-dark);
-    --scrollbar-track: var(--scrollbar-track-dark);
-    --scrollbar-thumb: var(--scrollbar-thumb-dark);
-    --shadow-card: 0 1px 2px rgb(0 0 0 / 45%);
-    --shadow-overlay: 0 16px 40px rgb(0 0 0 / 55%);
-  }
-
-  @supports (color: light-dark(white, black)) {
-    --bg: light-dark(var(--bg-light), var(--bg-dark));
-    --surface: light-dark(var(--surface-light), var(--surface-dark));
-    --surface-subtle: light-dark(var(--surface-subtle-light), var(--surface-subtle-dark));
-    --sidebar: light-dark(var(--sidebar-light), var(--sidebar-dark));
-    --border: light-dark(var(--border-light), var(--border-dark));
-    --border-strong: light-dark(var(--border-strong-light), var(--border-strong-dark));
-    --ink: light-dark(var(--ink-light), var(--ink-dark));
-    --muted: light-dark(var(--muted-light), var(--muted-dark));
-    --accent: light-dark(var(--accent-light), var(--accent-dark));
-    --accent-hover: light-dark(var(--accent-hover-light), var(--accent-hover-dark));
-    --accent-ink: light-dark(var(--accent-ink-light), var(--accent-ink-dark));
-    --accent-soft: light-dark(var(--accent-soft-light), var(--accent-soft-dark));
-    --danger: light-dark(var(--danger-light), var(--danger-dark));
-    --danger-soft: light-dark(var(--danger-soft-light), var(--danger-soft-dark));
-    --ok: light-dark(var(--ok-light), var(--ok-dark));
-    --ok-soft: light-dark(var(--ok-soft-light), var(--ok-soft-dark));
-    --warn: light-dark(var(--warn-light), var(--warn-dark));
-    --warn-soft: light-dark(var(--warn-soft-light), var(--warn-soft-dark));
-    --scrollbar-track: light-dark(var(--scrollbar-track-light), var(--scrollbar-track-dark));
-    --scrollbar-thumb: light-dark(var(--scrollbar-thumb-light), var(--scrollbar-thumb-dark));
-  }
+  --bg: #000000;
+  --surface: #141414;
+  --surface-subtle: #1f1f1f;
+  --sidebar: #000000;
+  --border: #2b2b2b;
+  --border-strong: #474747;
+  --ink: #f0f0f0;
+  --muted: #8c8c8c;
+  --accent: #ffffff;
+  --accent-hover: #d9d9d9;
+  --accent-ink: #000000;
+  --accent-soft: #262626;
+  --danger: #ffffff;
+  --danger-soft: #262626;
+  --ok: #f0f0f0;
+  --ok-soft: #1f1f1f;
+  --warn: #bfbfbf;
+  --warn-soft: #1f1f1f;
+  --scrollbar-track: #000000;
+  --scrollbar-thumb: #474747;
+  --shadow-card: none;
+  --shadow-overlay: none;
 
   accent-color: var(--accent);
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
@@ -162,8 +78,8 @@
   }
 
   ::selection {
-    background-color: var(--accent-soft);
-    color: var(--ink);
+    background-color: var(--ink);
+    color: var(--bg);
   }
 
   input,
@@ -199,8 +115,7 @@
 .card-surface {
   background-color: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.625rem;
-  box-shadow: var(--shadow-card);
+  border-radius: 4px;
 }
 
 dialog:modal {
@@ -217,15 +132,14 @@ dialog::backdrop {
   padding: 0;
   width: min(28rem, calc(100dvw - 2rem));
   max-height: calc(100dvh - 2rem);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
   background-color: var(--surface);
   color: var(--ink);
-  box-shadow: var(--shadow-overlay);
 }
 
 .ConfirmDialog::backdrop {
-  background: rgb(10 15 28 / 55%);
+  background: rgb(0 0 0 / 75%);
 }
 
 .Drawer {
@@ -245,8 +159,8 @@ dialog::backdrop {
 }
 
 .Drawer::backdrop {
-  background: #0a0f1c;
-  opacity: calc(var(--drawer-backdrop) * 0.55);
+  background: #000000;
+  opacity: calc(var(--drawer-backdrop) * 0.75);
 }
 
 .Drawer-scroller {
@@ -315,8 +229,7 @@ dialog::backdrop {
   max-block-size: min(560px, 72dvh);
   background-color: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.625rem;
-  box-shadow: var(--shadow-card);
+  border-radius: 4px;
   container-type: inline-size;
 }
 
@@ -336,10 +249,8 @@ dialog::backdrop {
   background-color: var(--surface-subtle);
   color: var(--muted);
   border-bottom: 1px solid var(--border);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  font-size: 0.8125rem;
+  font-weight: 500;
   text-align: left;
   padding: 0.625rem 0.875rem;
   white-space: nowrap;
@@ -415,7 +326,7 @@ dialog::backdrop {
 
 .tab-item[aria-selected="true"],
 .tab-item[aria-current="page"] {
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .tab-item[aria-selected="true"]::after,
@@ -423,5 +334,5 @@ dialog::backdrop {
   content: '';
   position: absolute;
   inset: auto 0 0;
-  border-block-end: 2.5px solid var(--accent);
+  border-block-end: 2px solid var(--ink);
 }

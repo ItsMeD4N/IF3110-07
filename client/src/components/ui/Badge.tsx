@@ -4,11 +4,11 @@ import type { AccessLevel, ExecutionStatus, JobStatus, WorkflowStatus } from '@/
 export type BadgeTone = 'neutral' | 'accent' | 'ok' | 'warn' | 'danger';
 
 const toneStyles: Record<BadgeTone, string> = {
-  neutral: 'bg-surface-subtle text-muted border-border',
-  accent: 'bg-accent-soft text-accent border-accent/25',
-  ok: 'bg-ok-soft text-ok border-ok/25',
-  warn: 'bg-warn-soft text-warn border-warn/25',
-  danger: 'bg-danger-soft text-danger border-danger/30',
+  neutral: 'bg-transparent text-muted border-border',
+  accent: 'bg-transparent text-ink border-ink',
+  ok: 'bg-transparent text-ink border-border-strong',
+  warn: 'bg-transparent text-muted border-border-strong border-dashed',
+  danger: 'bg-ink text-bg border-ink',
 };
 
 export function Badge({
@@ -22,7 +22,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${toneStyles[tone]} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${toneStyles[tone]} ${className}`}
     >
       {children}
     </span>

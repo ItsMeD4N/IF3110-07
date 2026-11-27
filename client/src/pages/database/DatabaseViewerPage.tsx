@@ -251,7 +251,7 @@ export function DatabaseViewerPage() {
       <section className="card-surface space-y-3 p-4 lg:hidden" aria-label="Pemilih schema dan tabel">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
-            <label htmlFor="mobile-schema-select" className="block text-xs font-semibold text-muted uppercase">
+            <label htmlFor="mobile-schema-select" className="block text-xs font-semibold text-muted">
               Schema
             </label>
             <select
@@ -269,7 +269,7 @@ export function DatabaseViewerPage() {
             </select>
           </div>
           <div className="space-y-1">
-            <label htmlFor="mobile-table-select" className="block text-xs font-semibold text-muted uppercase">
+            <label htmlFor="mobile-table-select" className="block text-xs font-semibold text-muted">
               Tabel / View ({schemaData.tables.length})
             </label>
             <select
@@ -300,7 +300,7 @@ export function DatabaseViewerPage() {
       >
         <div className="space-y-2.5 border-b border-border pb-3">
           <div className="flex items-center justify-between gap-2">
-            <label htmlFor="desktop-schema-select" className="text-xs font-semibold text-muted uppercase">
+            <label htmlFor="desktop-schema-select" className="text-xs font-semibold text-muted">
               Schema
             </label>
             <Button
@@ -352,7 +352,7 @@ export function DatabaseViewerPage() {
           </search>
         </div>
 
-        <div className="mt-2.5 flex items-center justify-between px-1 text-[11px] font-semibold text-muted uppercase">
+        <div className="mt-2.5 flex items-center justify-between px-1 text-[11px] font-semibold text-muted">
           <span>Tabel &amp; View</span>
           <span className="tabular-nums">{filteredTables.length}</span>
         </div>

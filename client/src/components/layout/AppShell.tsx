@@ -3,7 +3,6 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   CheckSquare,
   Database,
-  Layers,
   LogOut,
   Menu,
   Server,
@@ -57,18 +56,15 @@ function SidebarContent({
         <Link
           to="/databases"
           onClick={onNavigate}
-          className="inline-flex items-center gap-2 text-sm font-bold tracking-tight text-ink no-underline"
+          className="text-base font-semibold text-ink no-underline"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-accent-ink">
-            <Layers className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <span>DB Platform</span>
+          DB Platform
         </Link>
       </div>
 
       <nav aria-label="Navigasi utama" className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
         <div>
-          <p className="mb-1.5 px-2.5 text-[11px] font-semibold tracking-wider text-muted uppercase">
+          <p className="mb-1.5 px-2.5 text-xs text-muted">
             Workspace
           </p>
           <ul className="space-y-0.5">
@@ -88,7 +84,7 @@ function SidebarContent({
 
         {user?.is_platform_admin && (
           <div>
-            <p className="mb-1.5 px-2.5 text-[11px] font-semibold tracking-wider text-muted uppercase">
+            <p className="mb-1.5 px-2.5 text-xs text-muted">
               Platform Admin
             </p>
             <ul className="space-y-0.5">
@@ -113,7 +109,7 @@ function SidebarContent({
           <div className="mb-2.5 flex items-center gap-2.5 px-1.5">
             <span
               aria-hidden="true"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-strong text-xs font-semibold text-ink"
             >
               {getInitials(user.username)}
             </span>
@@ -320,8 +316,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             to="/databases"
             className="inline-flex items-center gap-2 text-sm font-bold text-ink no-underline"
           >
-            <Layers className="h-4 w-4 text-accent" aria-hidden="true" />
-            <span>DB Platform</span>
+            DB Platform
           </Link>
           <div className="w-9" aria-hidden="true" />
         </header>

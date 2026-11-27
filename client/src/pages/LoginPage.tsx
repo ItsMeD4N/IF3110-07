@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Layers, Lock } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/lib/api';
 import { Alert } from '@/components/ui/Alert';
@@ -50,23 +50,13 @@ export function LoginPage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-bg px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-ink">
-            <Layers className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-base font-bold tracking-tight text-ink">DB Platform</p>
-            <p className="text-xs text-muted">PostgreSQL Access &amp; Migration Control</p>
-          </div>
-        </div>
+        <p className="mb-6 text-base font-semibold text-ink">DB Platform</p>
 
         <section aria-labelledby="login-heading" className="card-surface p-6">
-          <h1 id="login-heading" className="text-xl font-bold tracking-tight text-ink">
-            Masuk ke akun
+          <h1 id="login-heading" className="text-xl font-semibold text-ink">
+            Masuk
           </h1>
-          <p className="mt-1 text-sm text-muted">
-            Gunakan akun yang terdaftar oleh Platform Admin untuk mengelola atau meninjau database.
-          </p>
+          <p className="mt-1 text-sm text-muted">Akunnya dibuat oleh Platform Admin.</p>
 
           {error && (
             <Alert variant="error" className="mt-4">
@@ -125,15 +115,11 @@ export function LoginPage() {
             </div>
 
             <Button type="submit" variant="primary" loading={submitting} className="w-full">
-              <Lock className="h-4 w-4" aria-hidden="true" />
-              <span>{submitting ? 'Memverifikasi…' : 'Masuk'}</span>
+              {submitting ? 'Memeriksa…' : 'Masuk'}
             </Button>
           </form>
         </section>
 
-        <p className="mt-4 text-center text-xs text-muted">
-          Sesi dilindungi cookie HttpOnly, rotasi token berkala, dan proteksi CSRF.
-        </p>
       </div>
     </div>
   );

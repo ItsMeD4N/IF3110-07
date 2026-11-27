@@ -127,10 +127,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             toast.kind === 'success' ? CheckCircle2 : toast.kind === 'error' ? AlertCircle : Info;
           const toneClasses =
             toast.kind === 'success'
-              ? 'bg-ok-soft text-ok border-ok/25'
+              ? 'bg-surface text-ink border-border-strong'
               : toast.kind === 'error'
-                ? 'bg-danger-soft text-danger border-danger/30'
-                : 'bg-accent-soft text-accent border-accent/25';
+                ? 'bg-surface text-ink border-ink'
+                : 'bg-surface text-ink border-border';
 
           return (
             <div
@@ -145,7 +145,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   scheduleAutoDismiss(toast.id);
                 }
               }}
-              className={`toast-item pointer-events-auto flex w-full items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm shadow-lg ${toneClasses}`}
+              className={`toast-item pointer-events-auto flex w-full items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-sm ${toneClasses}`}
             >
               <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1 leading-snug break-words">{toast.message}</p>
@@ -156,7 +156,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 aria-label="Tutup notifikasi"
                 onClick={() => dismissToast(toast.id)}
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-white/10"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>

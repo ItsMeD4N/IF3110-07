@@ -34,7 +34,7 @@ export function PageHeader({ title, description, breadcrumbs, actions }: PageHea
             ))}
           </nav>
         )}
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
+        <h1 className="text-2xl font-semibold text-ink">{title}</h1>
         {description && (
           <p className="mt-1 max-w-[68ch] text-sm leading-relaxed text-muted">{description}</p>
         )}
